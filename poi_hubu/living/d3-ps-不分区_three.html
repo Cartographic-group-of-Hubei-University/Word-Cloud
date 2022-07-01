@@ -1,0 +1,1020 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>力导向图</title>
+	<style>
+		#bbtree rect {
+			stroke: rgba(245, 19, 3, 0.5);
+			fill: none;
+		}
+
+		#bbtree .collide rect {
+			stroke: rgb(0, 255, 255);
+		}
+
+		#bbtree g,
+		#vis text {
+			cursor: pointer;
+		}
+
+		#bbtree {
+			-webkit-touch-callout: none;
+			-webkit-user-select: none;
+			-khtml-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			-o-user-select: none;
+			user-select: none;
+			background-color: rgb(0, 0, 0);
+			//background-image: url(hubu2.png);
+			//background-repeat: repeat;
+		}
+	</style>
+
+	<div id="bbtree" onload="start()">
+	输入标签数量：<input type="text" id="city" name="city">
+		<input type="button" value="生成" onclick="changeCount()" />
+		<input type="button" value="启动" onclick="qidong()" />
+    <input type="button" value="计算紧凑度" onclick="compute()" />
+    <!-- <div id="aa" style="position:absolute;top: 300px;left:200px;width: 400px; height: 400px;"></div> -->
+    <div class="modal fade" id="modelviewer" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+<div class="modal-dialog" style="width: 500px">
+  <div class="modal-content" style="width: auto">
+    <div class="modal-header">
+      <h5 class="modal-title" id="titleLabel">POI印象词云</h5>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <div style="height: 400px">
+        <div id="renderCanvas" style="width: 400px; height: 400px;"></div>
+      </div>
+    </div>
+  </div>
+  <!-- /.modal-content -->
+</div>
+  <!-- /.modal -->
+</div>
+	</div>
+</head>
+
+<body>
+	<!-- <script src="https://d3js.org/d3-dispatch.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-selection.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-drag.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-quadtree.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-timer.v1.min.js"></script> -->
+	<!-- <script src="./d3-force.js"></script> -->
+	<!-- <script src="./d3-force/d3-force/src/manyBody.js"></script> -->
+	<!-- <script src="./d3-force/d3-force/src/simulation.js"></script> -->
+	<link href='https://fonts.googleapis.com/css?family=League+Script' rel='stylesheet' type='text/css'>
+    <link rel='stylesheet prefetch' href='https://fonts.googleapis.com/css?family=Bad+Script|Gruppo|Kumar+One+Outline|League+Script|Londrina+Outline|Monoton|Sriracha|Yellowtail&text=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?+'>
+	<link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdn.bootcss.com/bootstrap/3.3.0/css/bootstrap.min.css">
+	<script src="js/index.js"></script>
+	<script src="http://d3js.org/d3.v5.min.js" charset="utf-8"></script>
+	<script type="text/javascript" src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+  <script type="text/javascript" src="./echarts.js"></script>
+  <script type="text/javascript" src="./echarts-wordcloud.js"></script>
+  <script src="https://cdn.bootcss.com/bootstrap/3.3.0/js/bootstrap.min.js"></script>
+	<script>
+		function changeCount() {
+			var textCount = $("#city").val();
+			window.localStorage.setItem("textCount", textCount);
+			//debugger;
+			parent.location.reload();
+		}
+
+		function qidong() {
+			debugger;
+			forceSimulation.tick();
+		}
+
+		function Tree(x, y, r, b) {
+			this.x = x;
+			this.y = y;
+			this.r = r;
+			this.b = b;
+			this.children = null;
+		}
+
+		var minBoxSize = 1;
+
+		function makeTree(shape, x, y, r, b) {
+			if (contains(shape, x, y, r, b)) {
+				return new Tree(x, y, r, b);
+			} else if (intersects(shape, x, y, r, b)) {
+				var cx = (x + r) >> 1,
+					cy = (y + b) >> 1,
+					tree = new Tree(x, y, r, b);
+				if (r - x > minBoxSize || b - y > minBoxSize) {
+					var children = [],
+						c0 = makeTree(shape, x, y, cx, cy),
+						c1 = makeTree(shape, cx, y, r, cy),
+						c2 = makeTree(shape, x, cy, cx, b),
+						c3 = makeTree(shape, cx, cy, r, b);
+					if (c0) children.push(c0);
+					if (c1) children.push(c1);
+					if (c2) children.push(c2);
+					if (c3) children.push(c3);
+					if (children.length) tree.children = children;
+				}
+				return tree;
+			}
+			return null;
+		}
+
+		function contains(shape, x, y, r, b) {
+			if (x < shape.x || y < shape.y || r >= shape.r || b >= shape.b) return false;
+			x -= shape.x;
+			y -= shape.y;
+			r -= shape.x;
+			b -= shape.y;
+			var w = shape.r - shape.x,
+				sprite = shape.sprite;
+			for (var j = y; j < b; j++) {
+				for (var i = x; i < r; i++) if (!sprite[j * w + i]) return false;
+			}
+			return true;
+		}
+
+		function intersects(shape, x, y, r, b) {
+			x = Math.max(0, x - shape.x);
+			y = Math.max(0, y - shape.y);
+			r = Math.min(shape.r, r) - shape.x;
+			b = Math.min(shape.b, b) - shape.y;
+			var w = shape.r - shape.x,
+				sprite = shape.sprite;
+			for (var j = y; j < b; j++) {
+				for (var i = x; i < r; i++) if (sprite[j * w + i]) return true;
+			}
+			return false;
+		}
+
+		function overlaps(tree, otherTree, aox, aoy, box, boy) {
+			if (rectCollide(tree, otherTree, aox, aoy, box, boy)) {
+				if (tree.children == null) {
+					if (otherTree.children == null) {
+						//forceSimulation.stop(); 	
+						return true;
+					}
+					else for (var i = 0, n = otherTree.children.length; i < n; i++) {
+						if (overlaps(tree, otherTree.children[i], aox, aoy, box, boy)) {
+							//forceSimulation.stop(); 		  
+							return true;
+						}
+					}
+				} else for (var i = 0, n = tree.children.length; i < n; i++) {
+					if (overlaps(otherTree, tree.children[i], box, boy, aox, aoy)) {
+						//forceSimulation.stop();
+						return true;
+					}
+				}
+			}
+			//forceSimulation.stop();
+			return false;
+		}
+
+		function rectCollide(a, b, aox, aoy, box, boy) {
+			return aoy + a.b > boy + b.y
+				&& aoy + a.y < boy + b.b
+				&& aox + a.r > box + b.x
+				&& aox + a.x < box + b.r;
+		}
+
+		function acData(i) {
+			var url = "http://api.map.baidu.com/place/v2/search?query=%E9%A5%AD%E5%BA%97&tag=%E7%BE%8E%E9%A3%9F&region=%E6%AD%A6%E6%B1%89&page_num=" + i + "&output=json&ak=4ISGs8LjGFdBGFD0dvh2BeDeQ6xjj9pa";
+			$.ajax({
+				url: url,
+				dataType: 'jsonp',
+				jsonp: "callback", //Jquery生成验证参数的名称
+				processData: false,
+				async: false,
+				type: 'get',
+				success: function (data) {
+					//debugger;
+					var results = data.results;
+					for (var j = 0; j < results.length; j++) {
+						//debugger;
+						names.push(results[j].name);
+						lat.push(results[j].location.lat);
+						lng.push(results[j].location.lng);
+					}
+					//debugger;
+					//console.log(data);
+				},
+				error: function (XMLHttpRequest, textStatus, errorThrown) {
+					alert(XMLHttpRequest.status);
+					alert(XMLHttpRequest.readyState);
+					alert(textStatus);
+				}
+			});
+		}
+		var stextCount = localStorage.getItem("textCount");
+		//debugger;
+		var w = 1560,
+			h = 770,
+			p = 5;
+		var glyphs = [];
+		var sflag = 0;
+		//debugger;
+		var names = ["湖北大学","速8酒店(徐东销品茂店)", "纽宾凯酒店(徐东地铁站店)", "汉庭酒店(销品茂店)", "莱客伊精品酒店", "美居酒店(黄鹤楼店)", "丽枫酒店(武昌火车站广场店)", "武汉派尚主题酒店(解放公园店)", "7天酒店(首义路地铁站店)", "武汉江都商务宾馆", "馨梦商务宾馆(二七路店)", "瑞祥商务宾馆(前进一路店)", "如家·neo(武汉江汉路步行街店)", "城市便捷酒店(傅家坡店)", "7天酒店(武汉解放公园店)", "99优选酒店(武昌火车站地铁站店)", "7天酒店(亚贸广场军区总医院地铁站店)", "武汉美联假日酒店(市中心店)", "精途酒店(武汉东湖铁机路地铁站店)", "7天酒店(吉庆街地铁站店)", "水云岚酒店(江汉路店)", "宜尚酒店(武汉六渡桥地铁站店)", "果然主题酒店(菱角湖店)", "汉庭酒店(中山公园地铁站店)", "V9假日酒店(万松园美食街店)", "未来城大酒店", "汉庭酒店(菱角湖地铁站店)", "汉庭酒店(武汉菱角湖万达店)", "城市便捷酒店(汉口火车站西广场店)", "如家酒店(建设二路店)", "布丁酒店(广埠屯地铁站店)", "汉庭酒店(原首义广场店)", "武汉欢乐格林酒店(武汉欢乐谷店)", "莫泰酒店(青年路地铁站店)", "全季酒店(汉口火车站广场店)", "运7酒店(武汉首义路店)", "精途酒店(武汉江汉路步行街店)", "城市便捷酒店(街道口店)", "维也纳3好酒店(户部巷店)", "莱克快捷酒店(江汉路店)", "武汉东方建国大酒店", "维也纳国际酒店(武汉国际会展中心店)", "城市便捷酒店(汉口火车站地铁站店)", "速7快捷宾馆(八古墩店)", "锦江之星(中华路黄鹤楼户部巷店)", "宜尚酒店(武汉广场万松园店)", "如家酒店(虎泉街地铁站店)", "徽茵湖畔酒店(武汉泛海CBD店)", "如家快捷酒店(武汉江汉路步行街江滩店)", "华尚明珠酒店","武汉盛秦风臻宴酒店", "小民大排档(徐东店)", "皇记羊蝎子(友谊大道店)", "妥妥(昙华林店)", "荔晶时代餐厅(麟趾路店)", "胡桃里音乐酒馆(三阳路店)", "谢先生餐厅(沙湖店)", "国宾楼", "随园膳坊(融科天城店)", "茶港食堂", "谢先生餐厅(外滩店)", "香宫中餐厅(香格里拉大酒店)", "和怡酒轩", "老妈烧菜馆(徐东店)", "清境艺术餐厅", "金凤楼(雷王金融中心店)", "冯记招牌水煮鱼(中南天紫广场店)", "食尚坊(京汉大道店)", "见涨Upot重庆老火锅(天地店)", "丹青宴(武汉天地专卖店店)", "苗姑酒堂", "宝通寺素菜馆", "上海小南国(天地店)", "付先生在成都(苗栗路店)", "春风里川菜馆(武汉天地店)", "宝岛海鲜烧烤", "卤校长老火锅(武汉店)", "神仙钵湘香土菜馆(光华路店)", "刘胖子家常菜(中南二路店)", "东来顺(岳家嘴店)", "湖锦酒楼(国宴店)", "赵记干煸辣子鸡", "土大炮焖烤(四美塘店)", "风波庄(汉口店)", "胖锅轩(北湖总店)", "德润福严氏烧麦店(友谊路店)", "汉·小城·湖北菜老汉口藕汤(吉庆街店)", "螺神虾蟹大王(蔡锷路店)", "老灶壁(万松园路总店)", "正宗北京片皮烤鸭(江汉三路店)", "苹果妹冰粉(三新横街店)", "灿玖馆(胜利街店)", "猪大厨长沙菜土猪香(青城第一街店)", "夏氏砂锅(万松园总店)", "猫色咖啡", "艳阳天幸福殿堂酒店(武展店)", "金色池塘(解放大道店)", "隐庐私厨(东亭店)", "董厨煨汤馆(车站路店)", "美人家精致私厨(汉口永青汇店)","武汉威尼斯水世界", "首义公园", "沙湖公园", "昙华林", "宝通禅寺", "解放公园", "国货商场旧址", "汉口水塔", "紫阳公园", "武汉园博园", "吴佩孚公馆旧址", "黎黄陂路街头博物馆", "宋庆龄汉口旧居纪念馆", "汉口里", "武汉美术馆", "武汉杜莎夫人蜡像馆", "汉口江滩", "武汉自由时刻体育公园", "辛亥革命博物馆", "武汉二七纪念馆", "武昌江滩", "宝岛公园", "首善堂", "济生路电话分局旧址", "辛亥革命武昌起义纪念馆", "长春观", "知音号服务中心", "江汉关博物馆", "玛雅海滩水公园", "江汉关大楼旧址", "湖北美术馆", "黄鹤楼", "黄鹤楼公园", "首义广场", "平和打包厂旧址", "武昌城市公园", "武汉博物馆", "八七会议会址纪念馆", "武汉科学技术馆(新馆)", "堤角公园", "湖北省博物馆", "汉阳公园", "汉口江滩芦苇荡", "东湖生态旅游风景区-梨园", "武汉革命博物馆", "合美术馆", "武昌廉政文化公园", "汉阳江滩", "古德寺", "硚口公园"];
+		var lat =  [30.58292,30.592056, 30.597941, 30.598828, 30.587934, 30.551441, 30.536947, 30.608348, 30.53935, 30.586098, 30.632718, 30.587169, 30.591186, 30.542036, 30.609428, 30.530863, 30.534604, 30.589763, 30.591249, 30.59312, 30.586628, 30.581541, 30.617282, 30.587712, 30.599614, 30.530428, 30.609472, 30.609765, 30.623432, 30.622366, 30.529047, 30.536726, 30.5948, 30.594873, 30.620432, 30.544787, 30.586268, 30.534459, 30.545415, 30.587446, 30.622054, 30.581936, 30.62264, 30.619309, 30.555865, 30.594091, 30.515466, 30.60681, 30.586311, 30.51272,30.589561, 30.591449, 30.599437, 30.557913, 30.606133, 30.605629, 30.560734, 30.563039, 30.603065, 30.5492, 30.604677, 30.608562, 30.553601, 30.590445, 30.610441, 30.604521, 30.543635, 30.596545, 30.613728, 30.613598, 30.611836, 30.536913, 30.613253, 30.601759, 30.612381, 30.604285, 30.601379, 30.609877, 30.548553, 30.584588, 30.605515, 30.588313, 30.605431, 30.588617, 30.606661, 30.58792, 30.59317, 30.597066, 30.597569, 30.588206, 30.585169, 30.594995, 30.611209, 30.598947, 30.594949, 30.586078, 30.59448, 30.57843, 30.595857, 30.61952,30.566331, 30.547674, 30.570093, 30.557656, 30.538026, 30.614185, 30.58743, 30.584657, 30.536059, 30.632221, 30.590487, 30.592207, 30.592172, 30.626129, 30.58978, 30.561264, 30.613846, 30.581241, 30.542703, 30.64069, 30.564553, 30.603562, 30.593532, 30.582471, 30.547866, 30.546129, 30.602596, 30.581695, 30.601424, 30.582065, 30.570295, 30.550317, 30.549265, 30.543105, 30.58793, 30.53068, 30.617735, 30.592243, 30.584887, 30.667607, 30.567828, 30.556796, 30.611724, 30.580049, 30.559296, 30.47614, 30.556278, 30.553138, 30.624312, 30.576552];
+		var lng =[114.340713, 114.344499, 114.35208, 114.353928, 114.347232, 114.3254, 114.323975, 114.30925, 114.316819, 114.283898, 114.326173, 114.28664, 114.296121, 114.332856, 114.308693, 114.320619, 114.350821, 114.288766, 114.374786, 114.298931, 114.294683, 114.290783, 114.277337, 114.280626, 114.27605, 114.359687, 114.278221, 114.276093, 114.260815, 114.388, 114.369806, 114.308307, 114.378214, 114.268359, 114.259994, 114.316518, 114.294722, 114.353013, 114.305143, 114.293724, 114.264952, 114.281095, 114.265207, 114.265316, 114.303261, 114.27362, 114.381104, 114.26099, 114.305444, 114.387071, 114.342028, 114.345446, 114.352317, 114.323066, 114.308749, 114.308072, 114.324367, 114.323095, 114.30467, 114.355759, 114.310562, 114.289417, 114.325129, 114.354021, 114.293546, 114.284476, 114.338393, 114.299279, 114.317241, 114.317617, 114.312675, 114.347648, 114.31799, 114.295653, 114.319028, 114.300476, 114.295342, 114.297415, 114.333949, 114.368062, 114.277196, 114.295114, 114.344945, 114.294615, 114.27842, 114.283831, 114.300418, 114.308819, 114.27286, 114.295038, 114.294997, 114.306787, 114.37878, 114.275778, 114.307136, 114.280819, 114.293333, 114.37098, 114.306796, 114.306782,114.322105, 114.320165, 114.344803, 114.315578, 114.347202, 114.304546, 114.296684, 114.296693, 114.311781, 114.222347, 114.296916, 114.308826, 114.308773, 114.231369, 114.299543, 114.350992, 114.324321, 114.360803, 114.312357, 114.330712, 114.308665, 114.290888, 114.305489, 114.286698, 114.312911, 114.327304, 114.317119, 114.30403, 114.403582, 114.304163, 114.371902, 114.309043, 114.312194, 114.312126, 114.304258, 114.326784, 114.263081, 114.306376, 114.306519, 114.344703, 114.371879, 114.275846, 114.323223, 114.381562, 114.306917, 114.330573, 114.306432, 114.286939, 114.314118, 114.263404];
+		//驾车距离
+		var driveJuli = [10,2266, 2436, 1486, 2860, 1421, 1114, 1289, 1829, 836, 1772, 1243, 2143, 2408, 1087, 1201, 1173, 1025, 1294, 1387, 1218, 1538, 457, 1809, 3050, 2100, 1520, 1961, 1623, 1162, 1309, 1326, 1942, 2560, 1409, 2361, 1980, 363, 1306, 4176, 1354, 2704, 1679, 1156, 1235, 2814, 1587, 2454, 1418, 1607, 1301, 1825, 1997, 1287, 2168, 2223, 1251, 818, 2573, 1304, 1303, 1561, 2492, 1780, 1035, 1719, 1334, 2248, 1321, 1363, 1924, 1404, 299, 1843, 1098, 991, 1033, 1988, 871, 1547, 1833, 2842, 1053, 306, 1087, 2300, 1096, 1309, 1312, 1844, 1355, 1353, 2433, 1427, 1325, 1322, 1479, 1165, 1946, 1946, 775];
+		//公交距离
+	    var transitJuli =  [0, 814, 878, 1044, 1087, 1206, 1303, 1462, 1734, 1788, 1840, 1844, 1860, 1882, 1903, 1905, 1958, 1965, 2005, 2022, 2037, 2041, 2050, 2073, 2073, 2079, 2087, 2097, 2112, 2123, 2126, 2126, 2129, 2130, 2145, 2156, 2167, 2183, 2185, 2204, 2296, 2365, 2368, 2375, 2376, 2413, 2517, 2534, 2553, 2588, 60, 787, 990, 992, 1078, 1110, 1192, 1195, 1248, 1248, 1255, 1296, 1311, 1398, 1421, 1466, 1543, 1574, 1594, 1600, 1617, 1626, 1637, 1691, 1716, 1726, 1732, 1769, 1791, 1820, 1835, 1838, 1846, 1848, 1866, 1883, 1896, 1900, 1950, 1958, 1959, 1983, 2000, 2006, 2012, 2022, 2034, 2057, 2093, 2096,1020, 1303, 1380, 1574, 1588, 1685, 1737, 1799, 1836, 1853, 1857, 1863, 1863, 1875, 1889, 1921, 1925, 1988, 2002, 2003, 2027, 2036, 2052, 2075, 2082, 2100, 2102, 2135, 2139, 2139, 2183, 2203, 2209, 2210, 2212, 2218, 2220, 2255, 2261, 2293, 2329, 2341, 2358, 2379, 2389, 2404, 2411, 2421, 2427, 2490];
+		//骑行距离
+		var rideJuli = [0,6564, 8641, 4252, 11343, 3539, 2391, 2908, 5027, 3963, 4332, 5641, 9137, 9044, 2316, 2548, 3177, 1850, 3392, 5017, 3225, 4017, 855, 3523, 12114, 6583, 2845, 5565, 5705, 5073, 3538, 3005, 4430, 8833, 2622, 9094, 8587, 784, 4963, 16739, 3621, 9271, 3680, 2268, 3194, 16505, 5071, 8510, 3997, 3914, 3429, 5656, 5445, 2279, 6432, 9133, 2400, 2783, 7053, 2964, 5101, 4336, 8152, 6694, 2773, 7148, 4239, 6308, 4152, 3991, 5985, 6234, 504, 4888, 2220, 1777, 1999, 5391, 1668, 5178, 5545, 11282, 4800, 606, 2219, 7366, 3192, 2636, 3030, 7932, 2393, 3886, 9281, 2969, 4536, 4818, 4778, 3306, 5189, 4588, 3847];
+		var rates = [0, 4.4, 4.2, 5, 5, 4.9, 4.5, 4.1, 4.4, 4.1, 4.1, 4.5, 4.6, 4.7, 4.7, 4.3, 4.2, 4.3, 4.7, 4.4, 4.9, 4.9, 4, 4.7, 4.7, 4.5, 4.6, 4.5, 4.2, 4.5, 3.6, 4.6, 3.7, 4.5, 5, 5, 4.5, 4.3, 4.7, 4.2, 4.3, 4.2, 4.3, 3.6, 4.7, 4.7, 4.2, 4.9, 4.4, 5,4.5, 4.1, 4.2, 4.3, 4, 4.2, 4.2, 4.3, 4.4, 4.2, 4.1, 4.3, 4.5, 4.1, 4, 4.1, 4.6, 4.3, 4.3, 4.4, 4.1, 4.2, 4.2, 4.4, 4, 4.5, 4.3, 4.3, 4.4, 4.3, 4.4, 4.2, 4.4, 4.4, 4.2, 4.3, 4.3, 4.2, 4.3, 4.5, 4.3, 4.5, 4.2, 4.2, 4.4, 4.3, 4.2, 4.5, 4.2, 4.6,4.4, 4.4, 4.4, 4.6, 4.4, 4.7, 3, 4.4, 4.4, 4.4, 5, 4.3, 4.5, 4.5, 4.5, 4.2, 4.7, 5, 4.6, 4.8, 5, 4.2, 4.5, 4.3, 4.6, 4.2, 4.3, 4.7, 4.5, 4.8, 4.7, 4.1, 4.1, 4.4, 4.7, 4.2, 4.3, 4.4, 4.3, 4.4, 4.4, 4.7, 4.9, 4.7, 4.5, 4.7, 4.5, 4.7, 4.6, 4.5];
+		<!-- var hot =  [1,63, 41, 122, 76, 2, 200, 50, 1, 120, 79, 85, 106, 9, 69, 21, 87, 68, 200, 100, 1, 200, 75, 54, 78, 48, 1, 200, 56, 30, 1, 5, 161, 200, 200, 42, 41, 38, 63, 24, 200, 57, 24, 200, 37, 1, 11, 155, 67, 10]; -->
+		var pop = [10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+		//var names = ["湖北大学", "四美塘公园", "粤汉码头", "宋庆龄汉口旧居纪念馆", "汉口江滩芦苇荡"];
+		//var lat =[30.58292, 30.602735, 30.595153, 30.592172, 30.61173];
+		//var lng=[114.340713, 114.344745, 114.313247, 114.308773, 114.323225];
+        debugger;
+		//var names = ["湖北大学", "四美塘公园", "粤汉码头", "宋庆龄汉口旧居纪念馆", "汉口江滩芦苇荡"];
+		//var lat =[30.58292, 30.602735, 30.595153, 30.592172, 30.61173];
+		//var lng=[114.340713, 114.344745, 114.313247, 114.308773, 114.323225];
+        debugger;
+		var i = -1;
+		var myVar = null;
+		var distance = [];
+		var ydistance = [];
+		var toCenter = [];
+		var firstArea = 0;
+		var secondArea = 0;
+		var thirdArea = 0;
+		var forthArea = 0;
+		toCenter[0] = 0;
+		distance[0] = 0;
+		ydistance[0] = 0;
+		/***************删除重复数组*************/
+		for (var i = 0; i < names.length; i++) {
+			for (var j = i + 1; j < names.length; j++) {
+				if (names[i] === names[j]) {
+					names.splice(j, 1);
+					lat.splice(j, 1);
+					lng.splice(j, 1);
+					rates.splice(j, 1);
+		            pop.splice(j,1)
+					transitJuli.splice(j,1)
+		
+				
+
+				}
+			}
+		}
+			debugger;
+		/******************拉伸*************/
+		// for(var i = 1; i < names.length; i++)
+		// {
+		// lat[i]=lat[i]+250*(lat[i]-lat[0]);
+		// lng[i]=lng[i]+250*(lng[i]-lng[0]);
+		// }
+
+
+		/***************计算距中心标签欧氏距离*************/
+		 <!-- for (let j = 1; j < names.length; j++) { -->
+		 	<!-- //欧式距离 -->
+		 	<!-- distance[j] = Math.sqrt(Math.pow((lat[j] - lat[0]), 2) + Math.pow((lng[j] - lng[0]), 2)); -->
+		 	<!-- //Y轴距离 -->
+		 	<!-- //ydistance[j] = Math.abs(lat[j] - lat[0]); -->
+		 <!-- } -->
+
+            
+		<!-- //debugger; -->
+
+		 <!-- for (var m = 0; m < names.length - 2; m++) { -->
+		 	<!-- for (var n = 1; n < names.length - m - 1; n++) { -->
+		 		<!-- if (distance[n] > distance[n + 1]) { -->
+		 			<!-- var swap = distance[n]; -->
+		 			<!-- var swapname = names[n] -->
+		 			<!-- var swaplat = lat[n]; -->
+		 			<!-- var swaplng = lng[n]; -->
+					<!-- var swaptransitJuli = transitJuli[n]; -->
+					<!-- var swapprices = prices[n]; -->
+					<!-- var swaprates = rates[n]; -->
+
+		 			<!-- distance[n] = distance[n + 1]; -->
+		 			<!-- distance[n + 1] = swap; -->
+		 			<!-- names[n] = names[n + 1]; -->
+		 			<!-- names[n + 1] = swapname; -->
+		 			<!-- lat[n] = lat[n + 1]; -->
+		 			<!-- lat[n + 1] = swaplat; -->
+		 			<!-- lng[n] = lng[n + 1]; -->
+		 			<!-- lng[n + 1] = swaplng; -->
+					<!-- transitJuli[n] = transitJuli[n + 1]; -->
+		 			<!-- transitJuli[n + 1] = swaptransitJuli; -->
+					<!-- rates[n] = rates[n + 1]; -->
+					<!-- rates[n + 1] = swaprates; -->
+		 		<!-- } -->
+
+		 	<!-- } -->
+		 <!-- } -->
+     
+    <!-- names = names.slice(0,50) -->
+    <!-- lat = lat.slice(0,50) -->
+    <!-- lng = lng.slice(0,50) -->
+    <!-- transitJuli = transitJuli.slice(0,50) -->
+    <!-- prices = prices.slice(0,50) -->
+    <!-- rates =  rates.slice(0,50) -->
+
+		debugger;
+		/***************排序*************/
+		for (var m = 0; m < names.length - 2; m++) {
+			for (var n = 1; n < names.length - m - 1; n++) {
+				if (transitJuli[n] > transitJuli[n + 1]) {
+					var swap = transitJuli[n];
+					var swapname = names[n]
+					var swaplat = lat[n];
+					var swaplng = lng[n];
+				    var swappop = pop[n];
+					var swaprates = rates[n];
+
+					transitJuli[n] = transitJuli[n + 1];
+					transitJuli[n + 1] = swap;
+					names[n] = names[n + 1];
+					names[n + 1] = swapname;
+					lat[n] = lat[n + 1];
+					lat[n + 1] = swaplat;
+					lng[n] = lng[n + 1];
+					lng[n + 1] = swaplng;
+					rates[n] = rates[n + 1];
+					rates[n + 1] = swaprates;
+					pop[n] = pop[n + 1];
+					pop[n + 1] = swappop;
+				}
+
+			}
+		}
+
+
+		//    for (var n = 1; n < names.length - 1; n++) {
+		//     if(Math.abs(lat[n] - lat[n + 1])<0.001&Math.abs(lng[n] - lng[n + 1])<0.001)
+		// 	{   
+		// 	        debugger;
+		// 			if (ydistance[n] > ydistance[n + 1]) {
+		// 			var swap = distance[n];
+		// 			var swapname = names[n]
+		// 			var swaplat = lat[n];
+		// 			var swaplng = lng[n];
+
+		// 			ydistance[n] = ydistance[n + 1];
+		// 			ydistance[n + 1] = swap;
+		// 			names[n] = names[n + 1];
+		// 			names[n + 1] = swapname;
+		// 			lat[n] = lat[n + 1];
+		// 			lat[n + 1] = swaplat;
+		// 			lng[n] = lng[n + 1];
+		// 			lng[n + 1] = swaplng;
+		// 		}
+		// 	}
+
+		//        }
+
+		debugger;
+		/*var width = 1;
+		var height = 1;
+		var canvas = d3.select("body")
+			.append("svg")
+			.attr("width",width)
+			.attr("height",height);*/
+
+		var canvas = document.createElement("canvas");
+		canvas.width = 1;
+		canvas.height = 1;
+		var ratio = Math.sqrt(canvas.getContext("2d").getImageData(0, 0, 1, 1).data.length >> 2);
+		canvas.width = 600;
+		canvas.height = 210;
+		var c = canvas.getContext("2d");
+		c.strokeStyle = "#f00";
+		debugger;
+		var vis = d3.select("#bbtree").append("svg")
+			.attr("width", w)
+			.attr("height", h)
+			.attr("pointer-events", "all")
+			.append("g")
+			.attr("transform", "translate(630,235)")
+		//.attr("transform", "translate(-114.340713*(0.5-1),30.58292*(0.5-1)) scale(0.5)");
+
+
+
+		// for (let j = 0; j < stextCount; j++)
+		// //for(let j=20;j>-1;j--)
+		// {
+		// 	if (j == 0)
+		// 		glyphs.push({ name: names[j], size: 40, tree: glyphTree(names[j], 40), away:distance[j],area: 0, position: [lng[j], -lat[j]], flag: false });
+		//     else if(j == 1)
+		// 	    glyphs.push({ name: names[j], size: 20, tree: glyphTree(names[j], 20), away:distance[j],area: 0, position: [lng[j], -lat[j]], flag: true });
+		// 	else {
+		// 		let h = j % 4;
+		// 		if (h == 0)
+		// 			glyphs.push({ name: names[j], size: 15, tree: glyphTree(names[j], 15),away:distance[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+		// 		else if (h == 1)
+		// 			glyphs.push({ name: names[j], size: 20, tree: glyphTree(names[j], 20),away:distance[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+		// 		else if (h == 2)
+		// 			glyphs.push({ name: names[j], size: 25, tree: glyphTree(names[j], 25),away:distance[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+		// 		else if (h == 3)
+		// 			glyphs.push({ name: names[j], size: 30, tree: glyphTree(names[j], 30),away:distance[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+		// 	}
+		// }
+		//debugger;
+
+   for (let j = 0; j < stextCount; j++)
+    //for(let j=20;j>-1;j--)
+    {
+      debugger;
+      if (j == 0)
+        glyphs.push({ name: names[j], size: 50, tree: glyphTree(names[j], 50), away: transitJuli[j], area: pop[j], position: [lng[j], -lat[j]], flag: false });
+      else if (j == 1)
+        glyphs.push({ name: names[j], size: 22, tree: glyphTree(names[j], 22), away: transitJuli[j], area: pop[j], position: [lng[j], -lat[j]], flag: true });
+      else {
+        if (rates[j] <= 4.1)
+          glyphs.push({ name: names[j], size: 14, tree: glyphTree(names[j], 14), away: transitJuli[j], area: pop[j], position: [lng[j], -lat[j]], flag: false });
+        else if (rates[j] == 4.2) {
+          glyphs.push({ name: names[j], size: 16, tree: glyphTree(names[j], 16), away: transitJuli[j], area: pop[j], position: [lng[j], -lat[j]], flag: false });
+        }
+        else if (rates[j] == 4.3) {
+          glyphs.push({ name: names[j], size: 18, tree: glyphTree(names[j], 18), away: transitJuli[j], area: pop[j], position: [lng[j], -lat[j]], flag: false });
+        }
+        else if (rates[j] == 4.4) {
+          glyphs.push({ name: names[j], size: 20, tree: glyphTree(names[j], 20), away: transitJuli[j], area: pop[j], position: [lng[j], -lat[j]], flag: false });
+        }
+        else if (rates[j] == 4.5) {
+          glyphs.push({ name: names[j], size: 22, tree: glyphTree(names[j], 22), away: transitJuli[j], area: pop[j], position: [lng[j], -lat[j]], flag: false });
+        }
+        else if (rates[j] == 4.6) {
+          glyphs.push({ name: names[j], size: 24, tree: glyphTree(names[j], 24), away: transitJuli[j], area: pop[j], position: [lng[j], -lat[j]], flag: false });
+        }
+        else if (rates[j] == 4.7) {
+          glyphs.push({ name: names[j], size: 26, tree: glyphTree(names[j], 26), away: transitJuli[j], area: pop[j], position: [lng[j], -lat[j]], flag: false });
+        }
+        else if (rates[j] == 4.8) {
+          glyphs.push({ name: names[j], size: 28, tree: glyphTree(names[j], 28), away: transitJuli[j], area: pop[j], position: [lng[j], -lat[j]], flag: false });
+        }
+        else {
+          glyphs.push({ name: names[j], size: 30, tree: glyphTree(names[j], 30), away: transitJuli[j], area: pop[j], position: [lng[j], -lat[j]], flag: false });
+        }
+
+      }
+    }
+
+		function colorRange(node) {
+  		if (node.index == 0) {
+				return "rgb(255,255,255)";
+			}
+			if (node.area==0){
+				return "#df7b7b";
+				//return "rgb(252,146,114)";
+			}
+			else if (node.area==1){
+				return "#8dd0ff";
+				//return "rgb(252,146,114)";
+			}
+			else if (node.area==2){
+			return "#ffea8c";
+				//return "rgb(252,146,114)";
+			}
+
+		}
+		var edges = [//边集
+			{ source: 0, target: 1, relation: "籍贯", value: 1 },
+			{ source: 0, target: 2, relation: "籍贯", value: 1 },
+			{ source: 0, target: 3, relation: "籍贯", value: 1 },
+			{ source: 1, target: 2, relation: "籍贯", value: 1 },
+			{ source: 2, target: 3, relation: "籍贯", value: 1 },
+			{ source: 3, target: 1, relation: "籍贯", value: 1 }
+
+		];
+
+		/**********给文本标签赋随机颜色************/
+
+		var forceSimulation = d3.forceSimulation()
+			//.force("charge", d3.forceManyBody())
+			//.force("link",d3.forceLink())
+			//.force("center", d3.forceCenter())
+			.force("x", d3.forceX())
+			.force("y", d3.forceY())
+
+		forceSimulation.nodes(glyphs)
+			.on("tick", ticked);
+
+		// forceSimulation.force("center")
+		// 		.x(114.340713) 
+		// 		.y(-30.58292); 
+
+		forceSimulation.alphaDecay(0.01);
+		forceSimulation.velocityDecay(0);
+		//forceSimulation.simulation.alpha(1);
+
+		/****************斥力******************/
+		// forceSimulation.force("charge")
+		// 	.strength(-0.2) 
+		// 	 .theta(1.3) 
+
+		//.distanceMin(10)
+		//.distanceMax(100)
+
+		/****************方向力******************/
+		forceSimulation.force("x")
+			.x(function (d) {
+				//debugger;
+				return d.position[0] + 20000 * (d.position[0] - 114.340713);
+			})
+			.strength(0.0001)
+
+
+
+		forceSimulation.force("y")
+			.y(function (d) {
+				//debugger;
+				return d.position[1] + 20000 * (d.position[1] + 30.58292);
+			})
+			.strength(0.0001)
+
+		//forceSimulation.alphaDecay(0.001);
+		//forceSimulation.alphaDecay(0.01);	
+
+
+
+		//forceSimulation.alphaDecay(0.001);			
+
+		function glyphTree(d, size) {
+			return makeTree({ sprite: sprite(c, d, size, 150, 600, 200), x: 0, y: 0, r: 600, b: 200 }, 0, 0, 600, 200);
+		}
+
+		var g = vis.selectAll(".circleText")
+			.data(glyphs)
+			.enter()
+			.append("g")
+			.attr("transform", function (d, i) {
+				if (d.index != 1) {
+					d.fx = d.position[0];
+					d.fy = d.position[1];
+				}
+				//debugger;
+				//var cirX = d.x;
+				//var cirY = d.y;
+				d.x = d.position[0];
+				d.y = d.position[1];
+				return "translate(" + d.x + "," + d.y + ")";
+				//return "translate("+cirX+","+cirY+")";
+
+			})
+			.on("click", function (d) {
+        $("#modelviewer").modal();
+        var data = {
+        value: [
+    {
+        "name": "适合亲子",
+        "value": 10
+    },
+    {
+        "name": "有包间",
+        "value": 10
+    },
+    {
+        "name": "停车方便",
+        "value": 10
+    },
+    {
+        "name": "高大上",
+        "value": 10
+    },
+    {
+        "name": "砂锅红烧肉不错",
+        "value": 10
+    },
+    {
+        "name": "适合团建",
+        "value": 10
+    },
+    {
+        "name": "回头客",
+        "value": 10
+    },
+    {
+        "name": "上菜很快",
+        "value": 10
+    },
+    {
+        "name": "份量足",
+        "value": 10
+    },
+    {
+        "name": "老牌子",
+        "value": 10
+    },
+    {
+        "name": "味道不错",
+        "value": 10
+    },
+    {
+        "name": "交通便利",
+        "value": 10
+    },
+    {
+        "name": "老店",
+        "value": 10
+    },
+    {
+        "name": "环境不错",
+        "value": 10
+    },
+    {
+        "name": "菜品丰富",
+        "value": 10
+    },
+    {
+        "name": "适合聚餐",
+        "value": 10
+    },
+    {
+        "name": "价格实惠",
+        "value": 10
+    },
+    {
+        "name": "服务热情",
+        "value": 10
+    },
+    {
+        "name": "位置优越",
+        "value": 10
+    },
+    {
+        "name": "人气旺",
+        "value": 10
+    },
+    {
+        "name": "店面大",
+        "value": 10
+    },
+    {
+        "name": "口味偏淡",
+        "value": 10
+    },
+    {
+        "name": "菜品新鲜",
+        "value": 10
+    },
+    {
+        "name": "有宫保鸡丁",
+        "value": 10
+    },
+    {
+        "name": "有红烧肉",
+        "value": 10
+    },
+    {
+        "name": "有鱼香肉丝",
+        "value": 10
+    }
+],
+        //小鸟图片
+      }
+      var myChart = echarts.init(document.getElementById('renderCanvas'));
+      //温馨提示：image 选取有严格要求不可过大；，否则firefox不兼容 iconfont上面的图标可以
+      var maskImage = new Image();
+      maskImage.src = data.image
+ 
+      maskImage.onload = function(){
+        myChart.setOption( {
+          backgroundColor:'#fff',
+          tooltip: {
+            show: false
+          },
+          series: [{
+            type: 'wordCloud',
+            gridSize: 1,
+            sizeRange: [12, 30],
+            //rotationRange: [-45, 0, 45, 90],
+            rotationRange: [0, 0],
+            //rotationStep: 45,
+            maskImage: maskImage,
+            textStyle: {
+              normal: {
+                color: function() {
+                  return 'rgb(' + [
+                    Math.round(Math.random() * 160),
+                    Math.round(Math.random() * 160),
+                    Math.round(Math.random() * 160)
+                ].join(',') + ')';
+                }
+              }
+            },
+            left: 'center',
+            top: 'center',
+            // width: '96%',
+            // height: '100%',
+            right: null,
+            bottom: null,
+            // width: 300,
+            // height: 200,
+            // top: 20,
+            data: data.value
+          }]
+        })
+      }
+				d.code = 32 + ((d.code - 32 + 1) % (0x7f - 32) || 9699);
+				d.text = String.fromCharCode(d.code);
+				d.tree = glyphTree(d.text);
+        // var newEl = document.createElement("input");
+        //   newEl.type = 'button';
+        //   newEl.value = "button";
+        //   newEl.name = "button1";
+        //   document.querySelector("#bbtree").append(newEl);
+        // alert(1)
+				update();
+			})
+			.call(d3.drag()
+				.subject(function (d) { return { x: d.position[0], y: d.position[1] }; })
+				.on("drag", function (d) {
+					//d.position = [Math.max(0, Math.min(w - canvas.width, d3.event.x)), Math.max(0, Math.min(h - canvas.height, d3.event.y))];
+					d.position = [d3.event.x, d3.event.y];
+					d3.select(this)
+						.attr("transform", function (d) { return "translate(" + d.position + ")"; });
+					collide();
+				})
+
+			);
+		g.append("text")
+			.attr("x", 600 / 2)
+			.attr("y", 150)
+			.attr("text-anchor", "middle")
+			.style("font-size", function (d) {
+				return d.size;
+			})
+			.attr("fill", function (d, i) {
+				return colorRange(d);
+			})
+			//.style("font-family", "FZZhongDengXian-Z07S")
+			.style("font-family", "Microsoft YaHei")
+			.style("font-weight", "bold")
+			.attr("pointer-events", "all")
+			.text(function (d) { return d.name; })
+
+		var rect = g.selectAll("rect")
+			.data(function (d) {
+				//debugger; 
+				return flatten(d.tree);
+			})
+			.enter()
+			.append("rect")
+			//.exit()
+			//.remove()
+			.attr("width", function (d) { return (d.r - d.x); })
+			.attr("height", function (d) { return (d.b - d.y); })
+			.attr("x", function (d) { return d.x; })
+			.attr("y", function (d) { return d.y; })
+			.style("stroke-width", function (d) { return 2 - d.depth / 2; });
+
+
+		function ticked() {
+			debugger;
+			g
+				.attr("transform", function (d) {
+					//debugger;
+					if(sflag == 0)
+					{
+					if (d.flag == true) {
+						d.position = [d.x, d.y];
+						debugger;
+						collide(d);
+						return "translate(" + d.x + "," + d.y + ")";
+					}
+					else {
+						return "translate(" + d.position[0] + "," + d.position[1] + ")";
+					}
+					//return "scale(1)";
+				}
+				else{
+					if (d.flag == false) {
+						//d.position = [d.x, d.y];
+						//debugger;
+						xcollide(d);
+						if (d.flag == false) {
+						return "translate(" + d.x + "," + d.y + ")";
+						}
+						else{
+						return "translate(" + d.position[0] + "," + d.position[1] + ")";
+						}
+					}
+					else {
+						return "translate(" + d.position[0] + "," + d.position[1] + ")";
+					}
+				}
+				}
+				);
+			//collide();	
+		}
+		var nstextCount = parseInt(stextCount);
+		function collide(curNode) {
+      if(curNode.index ==1)
+      g.selectAll("rect").remove(); 
+			for (var i = 0; i < curNode.index; i++) {
+				debugger;
+				var a = curNode,
+					b = glyphs[i];
+				if (overlaps(a.tree, b.tree, a.position[0], a.position[1], b.position[0], b.position[1])) {
+					// vis.classed("collide", overlaps(a.tree, b.tree, a.position[0], a.position[1], b.position[0], b.position[1]));
+					break;
+				}
+				else if (i == curNode.index - 1) {
+					debugger;
+					curNode.flag = overlaps(a.tree, b.tree, a.position[0], a.position[1], b.position[0], b.position[1]);
+					//curNode.vx=0;
+					//curNode.vy=0;
+					curNode.fx = curNode.x;
+					curNode.fy = curNode.y;
+					if (curNode.index != nstextCount - 1) {
+						let m = i + 2;
+						glyphs[m].flag = true;
+						forceSimulation.alpha(1);
+						glyphs[m].fx = null;
+						glyphs[m].fy = null;
+					}
+					if (curNode.index == nstextCount - 1) {
+						//alert("ok");
+						debugger;
+						//forceSimulation.alpha(0);
+						forceSimulation.force("x", null);
+						forceSimulation.force("y", null);
+						forceSimulation.alpha(1);
+						//glyphs[1].fx = null;
+						//glyphs[1].fy = null;
+						forceSimulation.force("x", d3.forceX())
+							.force("y", d3.forceY());
+						forceSimulation.force("x")
+							.x(114.340713)
+							.strength(0.001)
+						forceSimulation.force("y")
+							.y(function (d) {
+								//debugger;
+								return d.position[1];
+								//+20000*(d.position[1]+30.58292);
+							})
+							.strength(0.001)
+
+						for (let i = 0; i < glyphs.length; i++) {
+							if (glyphs[i].index != nstextCount-1) {
+								glyphs[i].fx = null;
+								glyphs[i].fy = null;
+							}
+						}
+            //alert(1);
+            debugger;
+            //rect._groups=[];
+            //rect.html('');
+            //rect._groups[0].remove()
+
+						glyphs[1].flag = true;
+						glyphs[0].flag = true;
+						glyphs[1].fx = null;
+						glyphs[1].fy = null;
+                        sflag++;
+					}
+					//glyphs[m].vx=NaN;
+				}
+				vis.classed("collide", overlaps(a.tree, b.tree, a.position[0], a.position[1], b.position[0], b.position[1]));
+			}
+		}
+		function xcollide(curNode) {
+		for(var i=0;i<nstextCount;i++ )
+		{
+			debugger;
+			if(i==curNode.index&&i!=nstextCount-1)
+			continue;
+			if(i==curNode.index&&i==nstextCount-1)
+			{
+			curNode.position = [curNode.x, curNode.y];
+			break;
+			}
+			var a = curNode,
+				b = glyphs[i];
+			var gap = Math.abs(curNode.x-114.340713);
+			//var origap = Math.abs(lng[curNode.index]-114.340713) * 2000;
+			var origap = Math.abs(lng[curNode.index]-114.340713) * 200;
+			if(overlaps(a.tree, b.tree, a.x, a.y, b.position[0], b.position[1])||gap<origap)
+			{ 
+			debugger;
+			curNode.flag=overlaps(a.tree, b.tree, a.x, a.y, b.position[0], b.position[1]);	
+			curNode.fx = curNode.position[0];
+			curNode.fy = curNode.position[1];
+			let m=curNode.index + 1;
+			glyphs[m].flag=false;
+			forceSimulation.alpha(1);	
+			glyphs[m].fx=null;
+			glyphs[m].fy=null;
+			break;
+			//glyphs[m].vx=NaN;
+			}
+            else if (i == nstextCount - 1) {
+			  curNode.position = [curNode.x, curNode.y];
+			}			
+			vis.classed("collide", overlaps(a.tree, b.tree, a.position[0], a.position[1], b.position[0], b.position[1]));
+		  }
+		}
+		function started(d) {
+			if (!d3.event.active) {
+				forceSimulation.alphaTarget(0.8).restart();
+			}
+			d.fx = d.x;
+			d.fy = d.y;
+		}
+		function dragged(d) {
+			d.fx = d3.event.x;
+			d.fy = d3.event.y;
+			debugger;
+		}
+		function ended(d) {
+			if (!d3.event.active) {
+				forceSimulation.alphaTarget(0);
+			}
+			d.fx = null;
+			d.fy = null;
+		}
+		function sprite(c, text, s, dy, w, h) {
+			c.clearRect(0, 0, w + 2 * p, h + 2 * p);
+			c.save();
+			c.fillStyle = "#EDF14D";
+			c.textAlign = "center";
+			c.font ="bold " + ~~(s / ratio) + "px  Microsoft YaHei";
+			c.translate(p + (w >> 1) / ratio, p + dy / ratio);
+			c.fillText(text, 0, 0);
+			c.restore();
+			var pixels = c.getImageData(p, p, w / ratio, h / ratio).data,
+				sprite = [];
+			for (var i = w * h; --i >= 0;) sprite[i] = pixels[(i << 2) + 3];
+			return sprite;
+		}
+
+		function flatten(root) {
+			var nodes = [];
+
+			recurse(root, 0);
+
+			return nodes;
+
+			function recurse(node, depth) {
+				node.depth = depth;
+				if (node.children) node.children.forEach(function (d) { recurse(d, depth + 1); });
+				nodes.push(node);
+			}
+		}
+		var data_legend = [
+			{
+				"name": "住宿",
+				"color": "#df7b7b"
+			},
+			{
+				"name": "餐饮",
+				"color": "#8dd0ff"
+			},
+			{
+				"name": "景点",
+				"color": "#ffea8c"
+			}
+		];
+
+		var width = 100;
+
+
+		debugger;
+		//初始化图例，将data_legend与图例绑定
+		var legend = vis.selectAll(".legend")
+			.data(data_legend)
+			.enter().append("g")
+			.attr("class", "legend")
+			.attr("transform", function (d, i) { debugger; return "translate(800," + (i * 30 + 390) + ")"; });  //transform属性便是整个图例的坐标
+
+		//绘制文字后方的颜色框或线
+		legend.append("rect")
+			.attr("x", width - 25) //width是svg的宽度，x属性用来调整位置
+			// .attr("x", (width / 160) * 157)  
+			//或者可以用width的分数来表示，更稳定一些，这是我试出来的，下面同
+			.attr("y", 8)
+			.attr("width", 40)
+			.attr("height", 10) //设低一些就是线，高一些就是面，很好理解
+			.style("fill", function (d) {
+				return d.color
+			});
+
+		//绘制图例文字
+		legend.append("text")
+			.attr("x", 60)
+			// .attr("x", (width / 40) * 39)
+			.attr("y", 15)
+			.style("text-anchor", "end") //样式对齐
+			.attr("fill", function (d) {
+				return "rgb(255,255,255)"
+			})
+			.text(function (d) {
+				return d.name;
+			});
+
+
+	</script>
+</body>
+
+</html>

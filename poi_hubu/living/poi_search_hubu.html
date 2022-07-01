@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- <script type="text/javascript" src="https://unpkg.com/xlsx@0.14.0/dist/xlsx.full.min.js"></script> -->
+    <script src="http://libs.baidu.com/jquery/2.1.4/jquery.min.js"></script>
+    <input type="button" value="导出" onclick="readData()" />
+    <title>Document</title>
+</head>
+
+<body>
+    <script type="text/javascript">
+            var count = 0;
+            var names = [];
+            var lats = [];
+			var lngs =  [];
+            var uids = [];
+            var hots = [];
+            var distance =[];
+            var transitJuli = [];
+            var driveJuli = [];
+            var rideJuli = [];
+            var page;
+            var num;
+            var prices = [];
+            var rates = [];
+            function readData(){
+                var  myurl = "https://api.map.baidu.com/place/v2/search?query=%E9%85%92%E5%BA%97&region=%E6%B9%96%E5%8C%97%E5%A4%A7%E5%AD%A6(%E6%AD%A6%E6%98%8C%E4%B8%BB%E6%A0%A1%E5%8C%BA)&page_size=20&page_num=0&output=json&ak=hAWqwsd60vmWtLgHb4S7u46r7yiHlNj2";
+                $.ajax({
+                        url: myurl,
+                        type: "get",
+                        dataType: "jsonp",
+                        success: function (result) {
+                            debugger;
+                            num = result.total;
+                            page = parseInt(num/20)+1;
+                            
+
+                            //返回成功进行响应操作
+                            //把获取信息填写在当中//现在还差image字段传值
+                            info();
+                        }
+                    });
+            }
+
+            function info() {
+            var myVal = setInterval(function () {
+                if (count < page) {
+                    //var myurl = "http://api.map.baidu.com/place/v2/search?query=%E6%97%85%E6%B8%B8%E6%99%AF%E7%82%B9&region=%E6%B9%96%E5%8C%97%E5%A4%A7%E5%AD%A6(%E6%AD%A6%E6%98%8C%E4%B8%BB%E6%A0%A1%E5%8C%BA)&page_size=10&page_num=" + count + "&output=json&ak=hAWqwsd60vmWtLgHb4S7u46r7yiHlNj2";
+                    // var  myurl = "https://api.map.baidu.com/place/v2/search?query=%E7%BE%8E%E9%A3%9F&region=%E6%B9%96%E5%8C%97%E5%A4%A7%E5%AD%A6(%E6%AD%A6%E6%98%8C%E4%B8%BB%E6%A0%A1%E5%8C%BA)&page_size=20&page_num=" + count + "&output=json&ak=hAWqwsd60vmWtLgHb4S7u46r7yiHlNj2";
+                    var myurl = "https://api.map.baidu.com/place/v2/search?query=%E9%85%92%E5%BA%97&region=%E6%B9%96%E5%8C%97%E5%A4%A7%E5%AD%A6(%E6%AD%A6%E6%98%8C%E4%B8%BB%E6%A0%A1%E5%8C%BA)&page_size=20&page_num=" + count + "&output=json&ak=hAWqwsd60vmWtLgHb4S7u46r7yiHlNj2"
+                    $.ajax({
+                        url: myurl,
+                        type: "get",
+                        dataType: "jsonp",
+                        success: function (result) {
+							for(var i=0;i<20;i++)
+							{ 
+                              if(result.results[i]==undefined)
+                              break;    
+							  uids.push(result.results[i].uid);
+							  names.push(result.results[i].name);
+                              lats.push(result.results[i].location.lat)
+                              lngs.push(result.results[i].location.lng)
+							}
+                            count++;
+                            //返回成功进行响应操作
+                            //把获取信息填写在当中//现在还差image字段传值
+                        }
+                    });
+                }
+                else{
+                    clearInterval(myVal);
+                    count = 0;
+                    //alert("当前进程已结束");
+                    poi_transitJuli();    
+                }
+            }, 3000);
+        }
+            function poi_transitJuli(){ 
+            var myVal = setInterval(function () {
+                if (count < num) {
+				//http://api.map.baidu.com/place/v2/search?query=%E6%97%85%E6%B8%B8%E6%99%AF%E7%82%B9&region=%E6%B9%96%E5%8C%97%E5%A4%A7%E5%AD%A6(%E6%AD%A6%E6%98%8C%E4%B8%BB%E6%A0%A1%E5%8C%BA)&page_size=10&page_num=0&output=json&ak=hAWqwsd60vmWtLgHb4S7u46r7yiHlNj2
+                    var myurl = "http://api.map.baidu.com/direction/v2/transit?origin=30.58292%2C114.340713&destination=" + lats[count] + "%2C" + lngs[count] + "&ak=hAWqwsd60vmWtLgHb4S7u46r7yiHlNj2";
+                    $.ajax({
+                        url: myurl,
+                        type: "get",
+                        dataType: "jsonp",
+                        success: function (result) {
+                            debugger;
+                            if (result.status == 1001 || result.status == 1000) {
+                                distance.push(0);
+                                count++;
+                            }
+                            else {
+                                var juli = [];
+                                for (var i = 0; i < result.result.routes.length; i++) {
+                                    juli.push(result.result.routes[i].duration)
+                                }
+                                transitJuli.push(Math.min.apply(Math, juli));
+                                count++;
+                                // distance.push(result.result.routes[0].duration)
+                                // count++;
+                            }
+                        }
+                    });
+                }
+                else {
+                    clearInterval(myVal);
+                    count = 0;
+                    //alert("当前进程已结束2");
+                    poi_rideJuli();
+                    //alert("当前进程已结束");
+                    //console.log(distance);
+                }
+            }, 1500);
+        }
+            function poi_rideJuli(){
+            var myVal = setInterval(function () {
+                if (count < num) {
+                    var myurl = "http://api.map.baidu.com/direction/v2/riding?origin=30.58292%2C114.340713&destination=" + lats[count] + "%2C" + lngs[count] + "&ak=hAWqwsd60vmWtLgHb4S7u46r7yiHlNj2";
+                    $.ajax({
+                        url: myurl,
+                        type: "get",
+                        dataType: "jsonp",
+                        success: function (result) {
+                            debugger;
+                            if (result.status == 1001 || result.status == 1000) {
+                                distance.push(0);
+                                count++;
+                            }
+                            else {
+                                var juli = [];
+                                for (var i = 0; i < result.result.routes.length; i++) {
+                                    juli.push(result.result.routes[i].duration)
+                                }
+                                rideJuli.push(Math.min.apply(Math, juli));
+                                count++;
+                                // distance.push(result.result.routes[0].duration)
+                                // count++;
+                            }
+                        }
+                    });
+                }
+                else {
+                    clearInterval(myVal);
+                    count = 0;
+                    //alert("当前进程已结束3")
+                    poi_driveJuli();
+                    //alert("当前进程已结束");
+                    //console.log(distance);
+                }
+            }, 2000);
+        }
+            function poi_driveJuli(){
+            var myVal = setInterval(function () {
+                if (count < num) {
+                    var myurl = "http://api.map.baidu.com/direction/v2/driving?origin=30.58292%2C114.340713&destination=" + lats[count] + "%2C" + lngs[count] + "&ak=hAWqwsd60vmWtLgHb4S7u46r7yiHlNj2";
+                    $.ajax({
+                        url: myurl,
+                        type: "get",
+                        dataType: "jsonp",
+                        success: function (result) {
+                            debugger;
+                            if (result.status == 1001 || result.status == 1000) {
+                                distance.push(0);
+                                count++;
+                            }
+                            else {
+                                var juli = [];
+                                for (var i = 0; i < result.result.routes.length; i++) {
+                                    juli.push(result.result.routes[i].duration)
+                                }
+                                driveJuli.push(Math.min.apply(Math, juli));
+                                count++;
+                                // distance.push(result.result.routes[0].duration)
+                                // count++;
+                            }
+                        }
+                    });
+                }
+                else {
+                    clearInterval(myVal);
+                    count = 0;
+                   // alert("当前进程已结束4");
+                    getHots();
+                    //console.log(distance);
+                }
+            }, 1500);
+        }
+        function getHots(){
+            var myVal = setInterval(function () {
+                if (count < num) {
+                    var myurl = "http://api.map.baidu.com/place/v2/detail?uid=" + uids[count] +"&output=json&scope=2&ak=hAWqwsd60vmWtLgHb4S7u46r7yiHlNj2";
+                    $.ajax({
+                        url: myurl,
+                        type: "get",
+                        dataType: "jsonp",
+                        success: function (result) {
+                            debugger;
+                            if(result.result.detail_info.price != null)
+                            {
+                                prices.push(result.result.detail_info.price);
+                            
+                            }
+                            else
+                            {
+                                prices.push("1");
+                            }
+                            if(result.result.detail_info.overall_rating!= null)
+                            {
+                            rates.push(result.result.detail_info.overall_rating);
+                            }
+                            else
+                            {
+                                rates.push("1");
+                            }
+                            count++; 
+                            //返回成功进行响应操作
+                            //把获取信息填写在当中//现在还差image字段传值
+                        }
+                    });
+                }
+                else{
+                    clearInterval(myVal);
+                    count = 0;
+                    //console.log(hots);
+                    //paixu();
+                    alert("数据抓取完成");
+                    console.log(names);
+                    console.log(lats);
+                    console.log(lngs);
+                    console.log(rates);
+                    console.log(prices);
+                    console.log(transitJuli);
+                    console.log(driveJuli);
+                    console.log(rideJuli);
+                }
+            }, 1500);
+        }
+        function paixu(){
+            var distance= [];
+            debugger;
+			/***************计算距中心标签欧氏距离*************/
+            for (let j = 0; j < names.length; j++) {
+                //欧式距离
+                distance[j] = Math.sqrt(Math.pow((lats[j] - 30.518659), 2) + Math.pow((lngs[j] - 114.419825), 2));
+                //Y轴距离
+               //ydistance[j] = Math.abs(lat[j] - lat[0]);
+            }
+            for(var m = 0; m < 140 - 1; m++) {
+			for (var n = 0; n < 140 - m - 1; n++) {
+				if (distance[n] > distance[n + 1]) {
+                    var swapdistance = distance[n];					
+					var swapnames = names[n]
+					var swaplats = lats[n];
+					var swaplngs = lngs[n];
+					var swaphots = hots[n];
+                    var swaptransitJuli = transitJuli[n];
+                    var swapdriveJuli = driveJuli[n]; 
+                    var swaprideJuli = rideJuli[n];
+
+                    distance[n] =distance[n + 1];
+					distance[n + 1] = swapdistance;
+					names[n] = names[n + 1];
+					names[n + 1] = swapnames  ;
+					lats[n] = lats[n + 1];
+					lats[n + 1] = swaplats;
+					lngs[n] = lngs[n + 1];
+					lngs[n + 1] = swaplngs;
+					hots[n] =hots[n + 1];
+					hots[n + 1] = swaphots;
+                    transitJuli[n] =transitJuli[n + 1];
+					transitJuli[n + 1] = swaptransitJuli;
+                    driveJuli[n] =driveJuli[n + 1];
+					driveJuli[n + 1] = swapdriveJuli; 
+                    rideJuli[n] =rideJuli[n + 1]; 
+					rideJuli[n + 1] = swaprideJuli;
+
+				}
+			}
+		}
+                var pnames = [];
+                var plats = [];
+                var plngs = [];
+                var phots = [];
+            //var distance =[];
+            // var ptransitJuli = [];
+            // var pdriveJuli = [];
+            // var prideJuli = [];
+            // for(let i=0;i<49;i++)
+            // {
+            //     pnames.push(names[i]);
+            //     plats.push(lats[i]);
+            //     plngs.push(lngs[i]);
+            //     phots.push(hots[i]);
+            //     ptransitJuli.push(transitJuli[i]);
+            //     pdriveJuli.push(driveJuli[i]);
+            //     prideJuli.push(rideJuli[i]);
+            // }
+            alert("数据抓取完成");
+            console.log(names);
+            console.log(lats);
+            console.log(lngs);
+            console.log(hots);
+            console.log(transitJuli);
+            console.log(driveJuli);
+            console.log(rideJuli);
+        }
+    </script>
+</body>
+
+</html>

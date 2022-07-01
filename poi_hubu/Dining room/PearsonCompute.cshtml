@@ -1,0 +1,113 @@
+﻿
+@{
+    ViewBag.Title = "PearsonCompute";
+    Layout = null;
+}
+<script src="~/Scripts/jquery/jquery-1.10.2.min.js"></script>
+<script type="text/javascript">
+
+    $(document).ready(function ()
+    {
+        $("#compute").click(function () {
+
+            for (var i = 0; i < 100000; i++)
+            {
+                var xval = $("#xinput").val();
+                var yval = $("#yinput").val();
+                if (xval == "" || yval == "") {
+                    $("#xinput").val(i)
+                    $("#yinput").val(Math.floor(Math.random() * (1, 100000)));
+                }
+                else {
+                    $("#xinput").val(xval + "," + i);
+                    $("#yinput").val(yval + "," +Math.floor( Math.random()*(1,100000)));
+                }
+            }
+
+
+
+            var xvalue = $("#xinput").val();
+            var yvalue = $("#yinput").val();
+            var xData=[]
+            var yData = []
+            var arr = xvalue.split(',');
+            var arr2 = yvalue.split(',');
+            for (var i = 0; i < arr.length; i++)
+            {
+                if (isNumber(parseFloat(arr[i])) && isNumber(parseFloat(arr2[i])))
+                {
+                    xData.push(parseFloat(arr[i]));
+                    yData.push(parseFloat(arr2[i]));
+                }
+            }
+            function isNumber(value) {         //验证是否为数字
+                var patrn = /^[0-9]+.?[0-9]*$/; //判断字符串是否为数字 //判断正整数 /^[1-9]+[0-9]*]*$/ 
+                if (!patrn.test(value)) {
+                 
+                    return false;
+                } else {
+                    return true
+                }
+            }
+            //for (var i in arr) {
+            //    xData.push(parseFloat(arr[i]));
+            //}
+           
+            //for (var i in arr2) {
+            //    yData.push(parseFloat(arr2[i]));
+            //}
+            //拿到两个数据的平均值
+            var xMeans = getMeans(xData);
+            var yMeans = getMeans(yData);
+            //计算皮尔逊系数的分子
+            var numerator = generateNumerator(xData, yData, xMeans, yMeans);
+            //计算皮尔逊系数的分母
+            var denominator = generateDenomiator(xData, yData, xMeans, yMeans);
+            var person = numerator / denominator;
+            $("#pear").val(Math.round(person * 1000000) / 1000000);
+        });
+
+
+        //求分母
+        function generateDenomiator(xData, yData,xMeans, yMeans) {
+            var xSum = 0.0;
+            for (var i = 0; i < xData.length; i++) {
+                xSum += (xData[i] - xMeans) * (xData[i] - xMeans);
+            }
+            var ySum = 0.0;
+            for (var i = 0; i < yData.length; i++) {
+                ySum += (yData[i] - yMeans) * (yData[i] - yMeans);
+            }
+            return Math.sqrt(xSum) * Math.sqrt(ySum);
+        }
+
+        //求分子
+        function generateNumerator(xData, yData, xMeans, yMeans) {
+            var sum = 0.0;
+            for (var i = 0; i < xData.length; i++) {
+                sum += (xData[i] - xMeans) * (yData[i] - yMeans);
+            }
+            return sum;
+        }
+        //求数组平均数
+        function getMeans (datas) {
+            var sum = 0.0;
+            for (var i = 0; i < datas.length; i++) {
+                sum += datas[i];
+            }
+            return sum / datas.length;
+        }
+    });
+
+ 
+
+</script>
+<div id="appSelect" >
+    <div> <label>x值数组,英文逗号隔开字符串</label> </div>
+    <div> <textarea id="xinput" style="width:500px;height:100px"></textarea></div>
+    <div> <label>y值数组,英文逗号隔开字符串</label></div> 
+    <div> <textarea id="yinput" style="width:500px;height:100px"></textarea></div>
+     <div> <label>皮尔逊值</label></div> 
+     <div> <textarea id="pear" style="width:500px;height:100px"></textarea></div>
+    <div> <button id="compute">计算皮尔逊</button></div>
+</div>

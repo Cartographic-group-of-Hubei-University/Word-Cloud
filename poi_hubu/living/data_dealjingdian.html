@@ -1,0 +1,901 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>力导向图</title>
+	<style>
+		#bbtree rect {
+			stroke: rgba(245, 19, 3, 0);
+			fill: none;
+		}
+
+		#bbtree .collide rect {
+			stroke: rgb(0, 255, 255);
+		}
+
+		#bbtree g,
+		#vis text {
+			cursor: pointer;
+		}
+
+		#bbtree {
+			-webkit-touch-callout: none;
+			-webkit-user-select: none;
+			-khtml-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			-o-user-select: none;
+			user-select: none;
+			background-color: rgb(0, 0, 0);
+			//background-image: url(hubu2.png);
+			//background-repeat: repeat;
+		}
+	</style>
+
+	<div id="bbtree" onload="start()">
+		输入标签数量：<input type="text" id="city" name="city">
+		<input type="button" value="生成" onclick="changeCount()" />
+		<input type="button" value="启动" onclick="qidong()" />
+	</div>
+</head>
+
+<body>
+	<!-- <script src="https://d3js.org/d3-dispatch.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-selection.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-drag.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-quadtree.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-timer.v1.min.js"></script> -->
+	<!-- <script src="./d3-force.js"></script> -->
+	<!-- <script src="./d3-force/d3-force/src/manyBody.js"></script> -->
+	<!-- <script src="./d3-force/d3-force/src/simulation.js"></script> -->
+	<link href='https://fonts.googleapis.com/css?family=League+Script' rel='stylesheet' type='text/css'>
+    <link rel='stylesheet prefetch' href='https://fonts.googleapis.com/css?family=Bad+Script|Gruppo|Kumar+One+Outline|League+Script|Londrina+Outline|Monoton|Sriracha|Yellowtail&text=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?+'>
+	<link rel="stylesheet" href="css/style.css">
+	<script src="js/index.js"></script>
+	<script src="http://d3js.org/d3.v5.min.js" charset="utf-8"></script>
+	<script type="text/javascript" src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+	<script>
+		function changeCount() {
+			var textCount = $("#city").val();
+			window.localStorage.setItem("textCount", textCount);
+			//debugger;
+			parent.location.reload();
+		}
+
+		function qidong() {
+			debugger;
+			forceSimulation.tick();
+		}
+
+		function Tree(x, y, r, b) {
+			this.x = x;
+			this.y = y;
+			this.r = r;
+			this.b = b;
+			this.children = null;
+		}
+
+		var minBoxSize = 1;
+
+		function makeTree(shape, x, y, r, b) {
+			if (contains(shape, x, y, r, b)) {
+				return new Tree(x, y, r, b);
+			} else if (intersects(shape, x, y, r, b)) {
+				var cx = (x + r) >> 1,
+					cy = (y + b) >> 1,
+					tree = new Tree(x, y, r, b);
+				if (r - x > minBoxSize || b - y > minBoxSize) {
+					var children = [],
+						c0 = makeTree(shape, x, y, cx, cy),
+						c1 = makeTree(shape, cx, y, r, cy),
+						c2 = makeTree(shape, x, cy, cx, b),
+						c3 = makeTree(shape, cx, cy, r, b);
+					if (c0) children.push(c0);
+					if (c1) children.push(c1);
+					if (c2) children.push(c2);
+					if (c3) children.push(c3);
+					if (children.length) tree.children = children;
+				}
+				return tree;
+			}
+			return null;
+		}
+
+		function contains(shape, x, y, r, b) {
+			if (x < shape.x || y < shape.y || r >= shape.r || b >= shape.b) return false;
+			x -= shape.x;
+			y -= shape.y;
+			r -= shape.x;
+			b -= shape.y;
+			var w = shape.r - shape.x,
+				sprite = shape.sprite;
+			for (var j = y; j < b; j++) {
+				for (var i = x; i < r; i++) if (!sprite[j * w + i]) return false;
+			}
+			return true;
+		}
+
+		function intersects(shape, x, y, r, b) {
+			x = Math.max(0, x - shape.x);
+			y = Math.max(0, y - shape.y);
+			r = Math.min(shape.r, r) - shape.x;
+			b = Math.min(shape.b, b) - shape.y;
+			var w = shape.r - shape.x,
+				sprite = shape.sprite;
+			for (var j = y; j < b; j++) {
+				for (var i = x; i < r; i++) if (sprite[j * w + i]) return true;
+			}
+			return false;
+		}
+
+		function overlaps(tree, otherTree, aox, aoy, box, boy) {
+			if (rectCollide(tree, otherTree, aox, aoy, box, boy)) {
+				if (tree.children == null) {
+					if (otherTree.children == null) {
+						//forceSimulation.stop(); 	
+						return true;
+					}
+					else for (var i = 0, n = otherTree.children.length; i < n; i++) {
+						if (overlaps(tree, otherTree.children[i], aox, aoy, box, boy)) {
+							//forceSimulation.stop(); 		  
+							return true;
+						}
+					}
+				} else for (var i = 0, n = tree.children.length; i < n; i++) {
+					if (overlaps(otherTree, tree.children[i], box, boy, aox, aoy)) {
+						//forceSimulation.stop();
+						return true;
+					}
+				}
+			}
+			//forceSimulation.stop();
+			return false;
+		}
+
+		function rectCollide(a, b, aox, aoy, box, boy) {
+			return aoy + a.b > boy + b.y
+				&& aoy + a.y < boy + b.b
+				&& aox + a.r > box + b.x
+				&& aox + a.x < box + b.r;
+		}
+
+		function acData(i) {
+			var url = "http://api.map.baidu.com/place/v2/search?query=%E9%A5%AD%E5%BA%97&tag=%E7%BE%8E%E9%A3%9F&region=%E6%AD%A6%E6%B1%89&page_num=" + i + "&output=json&ak=4ISGs8LjGFdBGFD0dvh2BeDeQ6xjj9pa";
+			$.ajax({
+				url: url,
+				dataType: 'jsonp',
+				jsonp: "callback", //Jquery生成验证参数的名称
+				processData: false,
+				async: false,
+				type: 'get',
+				success: function (data) {
+					//debugger;
+					var results = data.results;
+					for (var j = 0; j < results.length; j++) {
+						//debugger;
+						names.push(results[j].name);
+						lat.push(results[j].location.lat);
+						lng.push(results[j].location.lng);
+					}
+					//debugger;
+					//console.log(data);
+				},
+				error: function (XMLHttpRequest, textStatus, errorThrown) {
+					alert(XMLHttpRequest.status);
+					alert(XMLHttpRequest.readyState);
+					alert(textStatus);
+				}
+			});
+		}
+		var stextCount = localStorage.getItem("textCount");
+		//debugger;
+		var w = 1360,
+			h = 770,
+			p = 5;
+		var glyphs = [];
+		var sflag = 0;
+var names = [
+	"湖北大学",
+    "多莫大教堂",
+    "星空失恋博物馆",
+    "中国地质大学逸夫博物馆",
+    "马鞍山森林公园-烧烤区",
+    "东湖音乐公园",
+    "马鞍山森林公园-湿地公园",
+    "东湖梅园",
+    "武汉植物园",
+    "马鞍山森林公园",
+    "磨山景区",
+    "东湖生态旅游风景区",
+    "东湖绿道",
+    "东湖绿道",
+    "东湖落雁景区",
+    "万林艺术博物馆",
+    "武汉大学樱园",
+    "光谷科技港",
+    "东湖生态旅游风景区-听涛景区",
+    "湖北省博物馆",
+    "名人文化公园",
+    "武汉东湖海洋乐园",
+    "湖北美术馆",
+    "东湖生态旅游风景区-梨园",
+    "东湖生态旅游风景区-梨园",
+    "石门峰纪念公园",
+    "宝通禅寺",
+    "武汉九峰山森林动物园",
+    "武汉杜莎夫人蜡像馆",
+    "武汉欢乐谷",
+    "玛雅海滩水公园",
+    "武汉自由时刻体育公园",
+    "沙湖公园",
+    "武汉市九峰山革命烈士陵园",
+    "维佳童话镇",
+    "武昌城市公园",
+    "长春观",
+    "合美术馆",
+    "首义公园",
+    "武汉威尼斯水世界",
+    "紫阳公园",
+    "辛亥革命博物馆",
+    "首义广场",
+    "辛亥革命武昌起义纪念馆",
+    "昙华林",
+    "黄鹤楼公园",
+    "公园家",
+    "黄鹤楼",
+    "张公山寨度假山庄",
+    "武昌廉政文化公园",
+    "武汉革命博物馆",
+    "毛泽东同志旧居",
+    "武昌江滩",
+    "中共五大会址纪念馆",
+    "武汉长江大桥建成纪念碑",
+    "和平公园",
+    "青山公园",
+    "武汉江滩",
+    "武汉科学技术馆(新馆)",
+    "江汉关博物馆",
+    "江汉关大楼旧址",
+    "知音号服务中心",
+    "黎黄陂路街头博物馆",
+    "宋庆龄汉口旧居纪念馆",
+    "汉口江滩芦苇荡",
+    "平和打包厂旧址",
+    "汉口江滩",
+    "八七会议会址纪念馆",
+    "晴川阁景区",
+    "首善堂",
+    "汉阳江滩",
+    "汉口水塔",
+    "武汉美术馆",
+    "莲花湖公园",
+    "国货商场旧址",
+    "吴佩孚公馆旧址",
+    "龙泉山",
+    "孝恩园",
+    "汉阳树",
+    "济生路电话分局旧址",
+    "汉阳公园",
+    "古德寺",
+    "古德寺",
+    "解放公园",
+    "武汉二七纪念馆",
+    "龟山风景区",
+    "汉阳造广告创意园",
+    "汉阳造广告创意园",
+    "宝岛公园",
+    "归元禅寺",
+    "武汉市江夏中央大公园",
+    "硚口公园",
+    "堤角公园",
+    "谭鑫培公园",
+    "武汉国际会议中心",
+    "武汉国际博览中心-B馆",
+    "武汉动物园",
+    "张之洞与武汉博物馆",
+    "武汉博物馆",
+    "首地云梦台",
+    "墨水湖公园",
+    "武汉海昌极地海洋公园",
+    "常青公园",
+    "白云洞景区",
+    "农耕年华农业风情园",
+    "汉口里",
+    "武汉自然博物馆",
+    "梵高星空艺术馆",
+    "武汉园博园",
+    "盘龙城国家考古遗址公园",
+    "武汉28街",
+    "汤湖公园",
+    "金银湖国家城市湿地公园",
+    "龙灵山公园鸟语林",
+    "梁子湖风景区",
+    "龙灵山生态公园",
+    "府河湿地",
+    "武汉市中山舰博物馆",
+    "武汉花博汇",
+    "后官湖湿地公园",
+    "武汉野战国防园",
+    "木兰水镇旅游景区",
+    "木兰草原风景区",
+    "大余湾",
+    "凤娃古寨",
+    "凤娃古寨",
+    "问津书院",
+    "黄陂木兰文化生态旅游区",
+    "木兰湖风景区",
+    "木兰山",
+    "木兰山",
+    "木兰天池",
+    "木兰天池",
+    "道观河风景旅游区",
+    "道观河风景旅游区",
+    "木兰花乡旅游风景区",
+    "武汉姚家山风景区",
+    "锦里沟",
+    "锦里沟",
+    "木兰清凉寨",
+    "木兰清凉寨"
+];
+		var lat = [
+    30.58292,
+    30.508348,
+    30.506961,
+    30.523685,
+    30.531083,
+    30.543991,
+    30.535619,
+    30.546719,
+    30.550553,
+    30.525509,
+    30.554438,
+    30.557869,
+    30.560913,
+    30.560913,
+    30.565409,
+    30.542966,
+    30.545372,
+    30.461976,
+    30.573998,
+    30.567828,
+    30.520022,
+    30.580246,
+    30.570295,
+    30.580049,
+    30.580049,
+    30.519637,
+    30.538026,
+    30.507093,
+    30.561264,
+    30.59723,
+    30.601424,
+    30.581241,
+    30.570093,
+    30.514009,
+    30.600035,
+    30.53068,
+    30.546129,
+    30.47614,
+    30.547674,
+    30.566331,
+    30.536059,
+    30.542703,
+    30.543105,
+    30.547866,
+    30.557656,
+    30.549265,
+    30.630262,
+    30.550317,
+    30.594996,
+    30.556278,
+    30.559296,
+    30.556688,
+    30.564553,
+    30.556493,
+    30.552037,
+    30.640541,
+    30.643937,
+    30.591177,
+    30.584887,
+    30.581695,
+    30.582065,
+    30.602596,
+    30.592207,
+    30.592172,
+    30.611724,
+    30.58793,
+    30.613846,
+    30.592243,
+    30.561284,
+    30.593532,
+    30.553138,
+    30.584657,
+    30.58978,
+    30.55679,
+    30.58743,
+    30.590487,
+    30.417594,
+    30.401576,
+    30.553814,
+    30.582471,
+    30.556796,
+    30.624312,
+    30.624312,
+    30.614185,
+    30.64069,
+    30.560653,
+    30.561859,
+    30.561859,
+    30.603562,
+    30.551579,
+    30.386707,
+    30.576552,
+    30.667607,
+    30.375272,
+    30.5122,
+    30.515665,
+    30.548359,
+    30.566294,
+    30.617735,
+    30.660439,
+    30.554838,
+    30.67007,
+    30.626637,
+    30.352154,
+    30.725895,
+    30.626129,
+    30.630478,
+    30.539707,
+    30.632221,
+    30.700211,
+    30.720508,
+    30.470829,
+    30.647263,
+    30.444503,
+    30.246303,
+    30.432411,
+    30.728056,
+    30.351522,
+    30.494232,
+    30.551139,
+    30.487962,
+    30.96547,
+    30.965057,
+    31.032703,
+    30.916743,
+    30.916743,
+    30.801328,
+    31.099165,
+    31.102567,
+    31.108406,
+    31.108406,
+    31.183693,
+    31.183693,
+    30.879218,
+    30.879218,
+    31.243822,
+    31.25758,
+    31.278887,
+    31.278887,
+    31.301474,
+    31.301474
+];
+		var lng =[
+		114.340713,
+    114.413194,
+    114.41587,
+    114.40699,
+    114.441192,
+    114.420846,
+    114.438673,
+    114.413254,
+    114.429948,
+    114.453804,
+    114.419704,
+    114.420005,
+    114.448108,
+    114.448108,
+    114.442959,
+    114.369636,
+    114.369037,
+    114.406322,
+    114.381692,
+    114.371879,
+    114.488549,
+    114.386792,
+    114.371902,
+    114.381562,
+    114.381562,
+    114.494342,
+    114.347202,
+    114.497517,
+    114.350992,
+    114.399429,
+    114.403582,
+    114.360803,
+    114.344803,
+    114.510969,
+    114.37462,
+    114.326784,
+    114.327304,
+    114.330573,
+    114.320165,
+    114.322105,
+    114.311781,
+    114.312357,
+    114.312126,
+    114.312911,
+    114.315578,
+    114.312194,
+    114.404496,
+    114.309043,
+    114.511584,
+    114.306432,
+    114.306917,
+    114.305815,
+    114.308665,
+    114.3053,
+    114.300509,
+    114.392493,
+    114.414695,
+    114.311104,
+    114.306519,
+    114.30403,
+    114.304163,
+    114.317119,
+    114.308826,
+    114.308773,
+    114.323223,
+    114.304258,
+    114.324321,
+    114.306376,
+    114.291314,
+    114.305489,
+    114.286939,
+    114.296693,
+    114.299543,
+    114.284529,
+    114.296684,
+    114.296916,
+    114.522843,
+    114.504545,
+    114.277296,
+    114.286698,
+    114.275846,
+    114.314118,
+    114.314118,
+    114.304546,
+    114.330712,
+    114.274523,
+    114.274014,
+    114.274014,
+    114.290888,
+    114.265693,
+    114.32272,
+    114.263404,
+    114.344703,
+    114.330318,
+    114.250672,
+    114.248893,
+    114.248496,
+    114.249395,
+    114.263081,
+    114.294876,
+    114.221244,
+    114.285069,
+    114.244426,
+    114.294977,
+    114.467636,
+    114.231369,
+    114.229214,
+    114.195923,
+    114.222347,
+    114.275858,
+    114.268971,
+    114.168803,
+    114.193838,
+    114.139195,
+    114.527029,
+    114.126634,
+    114.190862,
+    114.139869,
+    114.083012,
+    114.07503,
+    113.98201,
+    114.435298,
+    114.467058,
+    114.378543,
+    114.760832,
+    114.760832,
+    114.90328,
+    114.403265,
+    114.477954,
+    114.399456,
+    114.399456,
+    114.291544,
+    114.291544,
+    115.00976,
+    115.00976,
+    114.394268,
+    114.200322,
+    114.233116,
+    114.233116,
+    114.223129,
+    114.223129
+];
+		//驾车距离
+		var driveJuli = [10, 578, 847, 865, 1026, 961, 952, 795, 742, 915, 1282, 1165, 1238, 1165, 1533, 1235, 993, 1142, 1408, 1330, 1025, 1353, 1578, 1319, 1337, 1379, 1366, 1275, 1223, 1280, 1561, 1515, 1292, 1412, 1503, 1717, 1551, 1397, 1458, 1419, 1677, 2212, 1919, 1464, 1633, 1364, 1716, 1365, 1712, 1803];
+		//公交距离
+		var transitJuli = [
+	0,
+    3157,
+    3423,
+    3602,
+    5679,
+    4165,
+    5284,
+    4480,
+    3901,
+    6572,
+    4441,
+    2905,
+    5859,
+    5859,
+    6122,
+    3234,
+    3325,
+    4638,
+    3019,
+    2329,
+    6600,
+    2705,
+    2183,
+    2379,
+    2379,
+    6727,
+    1588,
+    6504,
+    1921,
+    3101,
+    2139,
+    1988,
+    1380,
+    5992,
+    2531,
+    2218,
+    2100,
+    2404,
+    1303,
+    1020,
+    1836,
+    2002,
+    2210,
+    2082,
+    1574,
+    2209,
+    3330,
+    2203,
+    7705,
+    2411,
+    2389,
+    2590,
+    2027,
+    2555,
+    2601,
+    3143,
+    3280,
+    2575,
+    2261,
+    2135,
+    2139,
+    2102,
+    1863,
+    1863,
+    2358,
+    2212,
+    1925,
+    2255,
+    3361,
+    2052,
+    2421,
+    1799,
+    1889,
+    3118,
+    1737,
+    1857,
+    9403,
+    7662,
+    2553,
+    2075,
+    2341,
+    2427,
+    2427,
+    1685,
+    2003,
+    2611,
+    2517,
+    2517,
+    2036,
+    2693,
+    3840,
+    2490,
+    2293,
+    2914,
+    3449,
+    2822,
+    3084,
+    2997,
+    2220,
+    3400,
+    3597,
+    3107,
+    2843,
+    5561,
+    5982,
+    1875,
+    4075,
+    3114,
+    1853,
+    3302,
+    3664,
+    4839,
+    3180,
+    5460,
+    14400,
+    6660,
+    7627,
+    6654,
+    6279,
+    5687,
+    7499,
+    8099,
+    8065,
+    8765,
+    10603,
+    10603,
+    9517,
+    9623,
+    9290,
+    8373,
+    8373,
+    9072,
+    9068,
+    12663,
+    12663,
+    9264,
+    14254,
+    10584,
+    10584,
+    8373,
+    11285
+];
+		//骑行距离
+		var rideJuli = [0, 1003, 3092, 2815, 3798, 3724, 2852, 2676, 1534, 1960, 1903, 2082, 1848, 2723, 2873, 2965, 2130, 2235, 1773, 2493, 3951, 2753, 3460, 3528, 3176, 2768, 2520, 2537, 4781, 2378, 3224, 3187, 3155, 3558, 2280, 3932, 3822, 3870, 3915, 3902, 3941, 6138, 3371, 5803, 4351, 3198, 5037, 3756, 4706, 3763];
+		var esize = [0, 4.5, 4.5, 4.5, 4.5, 4.7, 4.5, 4.7, 4.7, 3, 4.7, 4.9, 4, 4.6, 4.4, 4.3, 5, 4.8, 4.4, 4.3, 4.7, 3.9, 4.2, 4.5, 4.1, 5, 5, 4.7, 4.4, 4.7, 4.1, 4.3, 4.3, 4.2, 4.4, 4.5, 4.4, 4.3, 3, 4.5, 4.7, 4.7, 4, 4.7, 4.3, 4.3, 4.3, 5, 4.9, 4.6];
+	
+		var i = -1;
+		var myVar = null;
+		var distance = [];
+		var ydistance = [];
+		var toCenter = [];
+		var firstArea = 0;
+		var secondArea = 0;
+		var thirdArea = 0;
+		var forthArea = 0;
+		toCenter[0] = 0;
+		distance[0] = 0;
+		ydistance[0] = 0;
+		/***************删除重复数组*************/
+		for (var i = 0; i < names.length; i++) {
+			for (var j = i + 1; j < names.length; j++) {
+				if (names[i] === names[j] || transitJuli[j]==null) {
+					names.splice(j, 1);
+					lat.splice(j, 1);
+					lng.splice(j, 1);
+					transitJuli.splice(j,1)
+
+				}
+			}
+		}
+			debugger;
+		/******************拉伸*************/
+		// for(var i = 1; i < names.length; i++)
+		// {
+		// lat[i]=lat[i]+250*(lat[i]-lat[0]);
+		// lng[i]=lng[i]+250*(lng[i]-lng[0]);
+		// }
+
+
+		/***************计算距中心标签欧氏距离*************/
+		//  for (let j = 1; j < names.length; j++) {
+		//  	//欧式距离
+		//  	distance[j] = Math.sqrt(Math.pow((lat[j] - lat[0]), 2) + Math.pow((lng[j] - lng[0]), 2));
+		//  	//Y轴距离
+		//  	//ydistance[j] = Math.abs(lat[j] - lat[0]);
+		//  }
+
+
+		//debugger;
+
+		//  for (var m = 0; m < names.length - 2; m++) {
+		//  	for (var n = 1; n < names.length - m - 1; n++) {
+		//  		if (distance[n] > distance[n + 1]) {
+		//  			var swap = distance[n];
+		//  			var swapname = names[n]
+		//  			var swaplat = lat[n];
+		//  			var swaplng = lng[n];
+		// 			var swaptransitJuli = transitJuli[n];
+
+		//  			distance[n] = distance[n + 1];
+		//  			distance[n + 1] = swap;
+		//  			names[n] = names[n + 1];
+		//  			names[n + 1] = swapname;
+		//  			lat[n] = lat[n + 1];
+		//  			lat[n + 1] = swaplat;
+		//  			lng[n] = lng[n + 1];
+		//  			lng[n + 1] = swaplng;
+		// 			transitJuli[n] = transitJuli[n + 1];
+		//  			transitJuli[n + 1] = swaptransitJuli;
+		//  		}
+
+		//  	}
+		//  }
+
+		debugger;
+		/***************排序*************/
+		for (var m = 0; m < names.length - 2; m++) {
+			for (var n = 1; n < names.length - m - 1; n++) {
+				if (transitJuli[n] > transitJuli[n + 1]) {
+					var swap = transitJuli[n];
+					var swapname = names[n]
+					var swaplat = lat[n];
+					var swaplng = lng[n];
+		
+
+					transitJuli[n] = transitJuli[n + 1];
+					transitJuli[n + 1] = swap;
+					names[n] = names[n + 1];
+					names[n + 1] = swapname;
+					lat[n] = lat[n + 1];
+					lat[n + 1] = swaplat;
+					lng[n] = lng[n + 1];
+					lng[n + 1] = swaplng;
+				}
+
+			}
+		}
+					names = names.slice(0,51)
+					lat = lat.slice(0,51)
+					lng = lng.slice(0,51)
+					transitJuli = transitJuli.slice(0,51)
+                var rates = [4.4,4.4,4.4,4.6,4.4,4.7,3,4.4,4.4,4.4,5,4.3,4.5,4.5,4.5,4.2,4.7,5,4.6,4.8,5,4.2,4.5,4.3,4.6,4.2,4.3,4.7,4.5,4.8,4.7,4.1,4.1,4.4,4.7,4.2,4.3,4.4,4.3,4.4,4.4,4.7,4.9,4.7,4.5,4.7,4.5,4.7,4.6,4.5] 
+   debugger;
+		//    for (var n = 1; n < names.length - 1; n++) {
+		//     if(Math.abs(lat[n] - lat[n + 1])<0.001&Math.abs(lng[n] - lng[n + 1])<0.001)
+		// 	{   
+		// 	        debugger;
+		// 			if (ydistance[n] > ydistance[n + 1]) {
+		// 			var swap = distance[n];
+		// 			var swapname = names[n]
+		// 			var swaplat = lat[n];
+		// 			var swaplng = lng[n];
+
+		// 			ydistance[n] = ydistance[n + 1];
+		// 			ydistance[n + 1] = swap;
+		// 			names[n] = names[n + 1];
+		// 			names[n + 1] = swapname;
+		// 			lat[n] = lat[n + 1];
+		// 			lat[n + 1] = swaplat;
+		// 			lng[n] = lng[n + 1];
+		// 			lng[n + 1] = swaplng;
+		// 		}
+		// 	}
+
+		//        }
+
+
+   
+	</script>
+</body>
+
+</html>

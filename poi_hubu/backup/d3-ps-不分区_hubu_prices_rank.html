@@ -1,0 +1,1763 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>力导向图</title>
+	<style>
+		#bbtree rect {
+			stroke: rgba(245, 19, 3, 0.5);
+			fill: none;
+		}
+
+		#bbtree .collide rect {
+			stroke: rgb(0, 255, 255);
+		}
+
+		#bbtree g,
+		#vis text {
+			cursor: pointer;
+		}
+
+		#bbtree {
+			-webkit-touch-callout: none;
+			-webkit-user-select: none;
+			-khtml-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			-o-user-select: none;
+			user-select: none;
+			background-color: rgb(0, 0, 0);
+			//background-image: url(hubu2.png);
+			//background-repeat: repeat;
+		}
+	</style>
+
+	<div id="bbtree" onload="start()">
+		输入标签数量：<input type="text" id="city" name="city">
+		<input type="button" value="生成" onclick="changeCount()" />
+		<input type="button" value="启动" onclick="qidong()" />
+    <input type="button" value="计算紧凑度" onclick="compute()" />
+    <input type="button" value="计算紧凑度" style="position: absolute;top:500px" onclick="compute()" />
+	</div>
+</head>
+
+<body>
+	<!-- <script src="https://d3js.org/d3-dispatch.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-selection.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-drag.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-quadtree.v1.min.js"></script> -->
+	<!-- <script src="https://d3js.org/d3-timer.v1.min.js"></script> -->
+	<!-- <script src="./d3-force.js"></script> -->
+	<!-- <script src="./d3-force/d3-force/src/manyBody.js"></script> -->
+	<!-- <script src="./d3-force/d3-force/src/simulation.js"></script> -->
+	<link href='https://fonts.googleapis.com/css?family=League+Script' rel='stylesheet' type='text/css'>
+    <link rel='stylesheet prefetch' href='https://fonts.googleapis.com/css?family=Bad+Script|Gruppo|Kumar+One+Outline|League+Script|Londrina+Outline|Monoton|Sriracha|Yellowtail&text=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?+'>
+	<link rel="stylesheet" href="css/style.css">
+	<script src="js/index.js"></script>
+	<script src="http://d3js.org/d3.v5.min.js" charset="utf-8"></script>
+	<script type="text/javascript" src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+	<script>
+		function changeCount() {
+			var textCount = $("#city").val();
+			window.localStorage.setItem("textCount", textCount);
+			//debugger;
+			parent.location.reload();
+		}
+
+		function qidong() {
+			debugger;
+			forceSimulation.tick();
+		}
+
+		function Tree(x, y, r, b) {
+			this.x = x;
+			this.y = y;
+			this.r = r;
+			this.b = b;
+			this.children = null;
+		}
+
+		var minBoxSize = 1;
+
+		function makeTree(shape, x, y, r, b) {
+			if (contains(shape, x, y, r, b)) {
+				return new Tree(x, y, r, b);
+			} else if (intersects(shape, x, y, r, b)) {
+				var cx = (x + r) >> 1,
+					cy = (y + b) >> 1,
+					tree = new Tree(x, y, r, b);
+				if (r - x > minBoxSize || b - y > minBoxSize) {
+					var children = [],
+						c0 = makeTree(shape, x, y, cx, cy),
+						c1 = makeTree(shape, cx, y, r, cy),
+						c2 = makeTree(shape, x, cy, cx, b),
+						c3 = makeTree(shape, cx, cy, r, b);
+					if (c0) children.push(c0);
+					if (c1) children.push(c1);
+					if (c2) children.push(c2);
+					if (c3) children.push(c3);
+					if (children.length) tree.children = children;
+				}
+				return tree;
+			}
+			return null;
+		}
+
+		function contains(shape, x, y, r, b) {
+			if (x < shape.x || y < shape.y || r >= shape.r || b >= shape.b) return false;
+			x -= shape.x;
+			y -= shape.y;
+			r -= shape.x;
+			b -= shape.y;
+			var w = shape.r - shape.x,
+				sprite = shape.sprite;
+			for (var j = y; j < b; j++) {
+				for (var i = x; i < r; i++) if (!sprite[j * w + i]) return false;
+			}
+			return true;
+		}
+
+		function intersects(shape, x, y, r, b) {
+			x = Math.max(0, x - shape.x);
+			y = Math.max(0, y - shape.y);
+			r = Math.min(shape.r, r) - shape.x;
+			b = Math.min(shape.b, b) - shape.y;
+			var w = shape.r - shape.x,
+				sprite = shape.sprite;
+			for (var j = y; j < b; j++) {
+				for (var i = x; i < r; i++) if (sprite[j * w + i]) return true;
+			}
+			return false;
+		}
+
+		function overlaps(tree, otherTree, aox, aoy, box, boy) {
+			if (rectCollide(tree, otherTree, aox, aoy, box, boy)) {
+				if (tree.children == null) {
+					if (otherTree.children == null) {
+						//forceSimulation.stop(); 	
+						return true;
+					}
+					else for (var i = 0, n = otherTree.children.length; i < n; i++) {
+						if (overlaps(tree, otherTree.children[i], aox, aoy, box, boy)) {
+							//forceSimulation.stop(); 		  
+							return true;
+						}
+					}
+				} else for (var i = 0, n = tree.children.length; i < n; i++) {
+					if (overlaps(otherTree, tree.children[i], box, boy, aox, aoy)) {
+						//forceSimulation.stop();
+						return true;
+					}
+				}
+			}
+			//forceSimulation.stop();
+			return false;
+		}
+
+		function rectCollide(a, b, aox, aoy, box, boy) {
+			return aoy + a.b > boy + b.y
+				&& aoy + a.y < boy + b.b
+				&& aox + a.r > box + b.x
+				&& aox + a.x < box + b.r;
+		}
+
+		function acData(i) {
+			var url = "http://api.map.baidu.com/place/v2/search?query=%E9%A5%AD%E5%BA%97&tag=%E7%BE%8E%E9%A3%9F&region=%E6%AD%A6%E6%B1%89&page_num=" + i + "&output=json&ak=4ISGs8LjGFdBGFD0dvh2BeDeQ6xjj9pa";
+			$.ajax({
+				url: url,
+				dataType: 'jsonp',
+				jsonp: "callback", //Jquery生成验证参数的名称
+				processData: false,
+				async: false,
+				type: 'get',
+				success: function (data) {
+					//debugger;
+					var results = data.results;
+					for (var j = 0; j < results.length; j++) {
+						//debugger;
+						names.push(results[j].name);
+						lat.push(results[j].location.lat);
+						lng.push(results[j].location.lng);
+					}
+					//debugger;
+					//console.log(data);
+				},
+				error: function (XMLHttpRequest, textStatus, errorThrown) {
+					alert(XMLHttpRequest.status);
+					alert(XMLHttpRequest.readyState);
+					alert(textStatus);
+				}
+			});
+		}
+		var stextCount = localStorage.getItem("textCount");
+		//debugger;
+		var w = 1360,
+			h = 770,
+			p = 5;
+		var glyphs = [];
+		var sflag = 0;
+		//debugger;
+		//var names = ["翠竹园农家菜", "江滩印象(江滩公园店)", "金滏山自助烤肉(司门口店)", "刘胖子家常菜", "汉水谣餐厅", "亢龙太子酒轩(雄楚大道店)", "水墨江南(八一路店)", "海底捞火锅(世贸广场店)", "拾味馆(光谷天地店)", "荷花亭(销品茂店)", "三五酒店(百步亭店)", "九头鹰家宴(岳家嘴店)", "新海景酒店(太平洋店)", "湖锦酒楼(汉黄路店)", "肯德基(光谷世界城店)", "桃花醉小酒馆(武大店)", "食家酒庄", "南海底平价小海鲜(紫菘店)", "梦天湖生态园大酒店(民福分店)", "香港稻香海鲜点心酒家(维港购物中心店)", "桂萍特色牛杂(长堤街总店)", "麦当劳(光谷步行街店)", "闲云野鹤", "艳阳天(彭刘杨路店)", "双湖园酒店(解放路店)", "Happy站台美食购物广场", "肯德基(光谷天地店)", "小贝壳(洞庭街店)", "艳阳天酒家旅店(宝丰路店)", "沈记烧烤海鲜(万松园总店)", "味满堂川菜馆(二七路店)", "老成都巴蜀馆串串(二七总店)", "味掌柜(铁机店)", "李刚复兴村牛排", "食尚坊(京汉大道店)", "大中华酒楼(金地中心店)", "华中科技大学百景园(华大店)", "青莲(一分店)", "口味堂(机场河店)", "福宝漠北味坊(汉口店)", "胖锅轩(北湖总店)", "豪客来(武大路店)", "秦风酒店(青山店)", "江南金草帽(中心百货店)", "豪客来(司门口餐厅)", "八筒火锅", "捞旺猪肚鸡(唐家墩店)", "荷花亭融合餐厅(中商广场店)", "九吞回转自助火锅(吴家山店)", "豪客来(武汉南湖广场餐厅)", "上牛炭匠(武汉M加购物中心店)", "五仲炸肉(五中老店)", "汉堡王(银泰创意城店)", "重庆巴渝火锅(钟家村店)", "鱼友烤全鱼(虎泉时尚创意坊店)", "宝岛牛排(江汉一路店)", "金谷一韩式料理自助烧烤(海林广场店)", "刘师父(蔡锷路店)", "锅之恋(武汉摩尔城店)", "烫锅鲜砂锅串串(二七路店)", "老诚一锅醉太羊(光谷天地店)", "韩厨(奥山世纪广场店)", "秀玉红茶坊(新佳丽时尚广场店)", "餐谋天下(兴业路店)", "菲特堡(光谷国际广场店)", "我家小馆(永旺梦乐城金银潭店店)", "凤爪王烧烤店(南京路店)", "海底捞火锅(新唐万科店)", "柚彩铁板烧自助料理", "米桃餐厅(武汉M加购物中心店)", "橘味餐厅(世贸广场店)", "茶港茶餐厅(世贸广场店)", "仟吉西饼(沌口店)", "小胡鸭(中南二店)", "小川料理(街道口总店)", "無境·匠心日本料理(汉街店)", "麦当劳(世贸广场店)", "肯德基(循礼门店)", "约你烘焙餐厅(永旺梦乐城金银潭店店)", "恩施印象(武汉荟聚中心店)", "三十三间堂(销品茂店)", "小胡鸭(青山店)", "仟吉西饼(金色华府店)", "麦格芬牛排(永旺梦乐城金银潭店店)", "楚香巴土印象(群星城店)", "米国煲仔饭(兰陵路店)", "尊宝比萨(软件园店)", "西堤厚牛排(武汉群光广场店)", "华莱士汉堡店(钢洲花园店)", "匠芯抄手(胜利街店)", "廖记棒棒鸡(华科店)", "川行天下(中百广场店)", "小仓极匠和食(珞珈创意体验城店)", "皇冠(宗关南国店)", "皇冠蛋糕(古田四路店)", "紫燕百味鸡(建设二路店)", "DQ(凯德广场店)"];
+		//var lat = [30.548571, 30.591537, 30.549195, 30.548553, 30.560032, 30.516101, 30.543203, 30.586136, 30.481505, 30.59355, 30.662904, 30.581265, 30.583014, 30.668091, 30.509595, 30.539475, 30.662557, 30.517174, 30.624902, 30.574544, 30.574424, 30.510832, 30.618307, 30.545172, 30.540838, 30.584647, 30.484079, 30.596192, 30.581611, 30.598467, 30.635207, 30.632896, 30.606282, 30.612546, 30.596545, 30.503748, 30.521839, 30.556046, 30.60692, 30.594026, 30.606661, 30.538779, 30.629475, 30.587509, 30.549075, 30.623511, 30.626527, 30.542262, 30.62659, 30.510464, 30.588696, 30.64603, 30.532707, 30.55614, 30.519904, 30.587737, 30.628975, 30.596696, 30.564457, 30.632868, 30.483154, 30.623574, 30.5844, 30.632058, 30.513234, 30.656555, 30.588017, 30.629641, 30.597498, 30.589168, 30.58603, 30.586131, 30.513339, 30.544444, 30.532242, 30.565025, 30.586341, 30.590627, 30.657009, 30.623639, 30.594885, 30.643078, 30.615989, 30.656502, 30.590667, 30.593559, 30.47833, 30.531769, 30.62224, 30.610822, 30.522251, 30.370248, 30.532485, 30.591759, 30.595651, 30.632403, 30.575025];
+		//var lng = [114.421951, 114.309309, 114.3052, 114.333949, 114.290345, 114.353022, 114.352777, 114.275582, 114.416712, 114.348865, 114.325462, 114.367233, 114.245108, 114.337987, 114.410844, 114.363202, 114.335395, 114.397626, 114.399946, 114.256328, 114.263724, 114.409502, 114.279999, 114.308688, 114.303543, 114.297811, 114.417035, 114.309732, 114.256402, 114.274865, 114.314755, 114.321913, 114.376748, 114.250177, 114.299279, 114.400437, 114.414376, 114.341125, 114.269029, 114.295839, 114.27842, 114.363466, 114.379064, 114.29617, 114.304689, 114.307864, 114.277673, 114.338317, 114.14145, 114.331126, 114.293265, 114.400232, 114.362268, 114.273072, 114.376311, 114.29757, 114.15036, 114.309407, 114.214538, 114.3217, 114.416897, 114.368256, 114.297285, 114.273942, 114.404272, 114.244194, 114.300509, 114.268252, 114.298512, 114.292547, 114.275221, 114.275681, 114.166842, 114.338407, 114.360343, 114.341553, 114.275076, 114.292241, 114.243151, 114.174651, 114.349517, 114.409642, 114.29276, 114.24413, 114.356275, 114.30343, 114.408745, 114.361671, 114.386712, 114.316291, 114.421851, 114.327156, 114.363234, 114.22981, 114.219743, 114.381202, 114.273968];
+
+		var names =  ["湖北大学", 
+    "湖锦酒楼(沌口店)",
+    "颐和尚景酒店(光谷创业街店)",
+    "雅和睿景花园酒店(园博园店)",
+    "荷清水香农家菜馆(野芷湖店)",
+    "谢先生餐厅(沙湖店)",
+    "湖锦酒楼(国宴店)",
+    "湖锦酒楼(新荣店)",
+    "夏氏砂锅(万松园总店)",
+    "大圣甲(总店)",
+    "谢先生餐厅(外滩店)",
+    "湖锦酒楼(光谷店)",
+    "国宾楼",
+    "湖锦酒楼(八一路店)",
+    "王府井酒店(汉阳金桥港湾店)",
+    "刘胖子家常菜(金色古田店)",
+    "翠竹园农家菜",
+    "东来顺(岳家嘴店)",
+    "小民大排挡(白沙洲店)",
+    "三五酒店(百步亭店)",
+    "胡桃里音乐酒馆(三阳路店)",
+    "刘胖子家常菜(中南二路店)",
+    "荔晶时代餐厅(麟趾路店)",
+    "艳阳天大酒店(五里新村店)",
+    "胖锅轩(北湖总店)",
+    "小民大排档(光谷店)",
+    "江胖子弯弯火锅城(玫瑰街店)",
+    "永信海鲜(工业路店)",
+    "卤校长老火锅(武汉店)",
+    "武汉盛秦风臻宴酒店",
+    "食尚坊(京汉大道店)",
+    "隐庐私厨(东亭店)",
+    "正宗北京片皮烤鸭(江汉三路店)",
+    "艳阳天幸福殿堂酒店(武展店)",
+    "金色池塘(解放大道店)",
+    "神仙钵湘香土菜馆(光华路店)",
+    "粗茶淡饭(蒸鲜店)",
+    "简朴寨(常青花园分店)",
+    "付先生在成都(苗栗路店)",
+    "德润福严氏烧麦店(友谊路店)",
+    "姐妹海鲜烧烤(杨汊湖二苑西南)",
+    "乐福园酒楼(七里庙店)",
+    "螺神虾蟹大王(蔡锷路店)",
+    "农家花园酒店(东湖店)",
+    "宽宅酒家(光谷创业街店)",
+    "川妹牛杂(麒麟路店)",
+    "随园膳坊(融科天城店)",
+    "茶港食堂",
+    "龟缘会馆",
+    "风波庄(汉口店)",
+    "海底捞(国博店)",
+    "小民大排档(徐东店)",
+    "赵记干煸辣子鸡",
+    "上海小南国(天地店)",
+    "丹青宴(武汉天地专卖店店)",
+    "天椒别院(书城路店)",
+    "和怡酒轩",
+    "田师傅虾蟹(前进二路店)",
+    "牧羊人烤全羊(后湖大道店)",
+    "美人家精致私厨(汉口永青汇店)",
+    "丹青小厨(后湖店)",
+    "金凤楼(雷王金融中心店)",
+    "汉·小城·湖北菜老汉口藕汤(吉庆街店)",
+    "牧羊庄烤全羊(东湖植物园店)",
+    "春风里川菜馆(武汉天地店)",
+    "土大炮焖烤(四美塘店)",
+    "老灶壁(万松园路总店)",
+    "味品会酒楼",
+    "老妈烧菜馆(徐东店)",
+    "老中原烧烤红火菜馆(洞庭街店)",
+    "秦风酒店(青山店)",
+    "老成都铜锅巷串串(青山店)",
+    "乐福园酒楼(锦绣长江店)",
+    "桂萍特色牛杂(长堤街总店)",
+    "猪大厨长沙菜土猪香(青城第一街店)",
+    "大碗厨专业长沙菜(青山店)",
+    "灿玖馆(胜利街店)",
+    "蒸虾壹号烤全羊(后湖店)",
+    "川香碳锅鱼(广八路武大总店)",
+    "成都钢管厂五区小郡肝串串香(江汉路店)",
+    "妈妈菜馆(武胜西街店)",
+    "宝通寺素菜馆",
+    "十里铺铁板鱿鱼",
+    "香宫中餐厅(香格里拉大酒店)",
+    "武汉富力万达嘉华酒店-品珍中餐厅",
+    "傣妹休闲时尚火锅(武昌广东商城店)",
+    "餐谋天下(兴业路店)",
+    "董厨煨汤馆(车站路店)",
+    "老狼烤羊(郭茨口店)",
+    "壹壶春(锦绣龙城店)",
+    "见涨Upot重庆老火锅(天地店)",
+    "皇记羊蝎子(友谊大道店)",
+    "老乡长(友谊大道店)",
+    "牛牛仔龙虾(后湖店)",
+    "苗姑酒堂",
+    "老街烧烤(百瑞景店)",
+    "宝岛海鲜烧烤",
+    "清境艺术餐厅",
+    "重庆巴渝火锅(钟家村店)",
+    "渝家小馆(兴业路店)",
+    "良辰美景时尚餐厅",
+    "万里香龙虾(南湖店)",
+    "辉辉梭边鱼火锅(首义园分店)",
+    "蔡记海鲜",
+    "成都瓜串串(常青三路店)",
+    "状元大圣甲(南湖店)",
+    "妥妥(昙华林店)",
+    "猫色咖啡",
+    "冯记招牌水煮鱼(中南天紫广场店)",
+    "零度·冰火锅概念餐厅(人信汇店)",
+    "一杯猫咖啡(百瑞景店)",
+    "苹果妹冰粉(三新横街店)"
+];
+		var lat =  [30.58292, 
+    30.508157,
+    30.506224,
+    30.62962,
+    30.47958,
+    30.560734,
+    30.605515,
+    30.66795,
+    30.598947,
+    30.542203,
+    30.604677,
+    30.512281,
+    30.563039,
+    30.544784,
+    30.535858,
+    30.599774,
+    30.548571,
+    30.584588,
+    30.525833,
+    30.662978,
+    30.605629,
+    30.548553,
+    30.606133,
+    30.55826,
+    30.606661,
+    30.505584,
+    30.571678,
+    30.625797,
+    30.601379,
+    30.589561,
+    30.596545,
+    30.57843,
+    30.588206,
+    30.586078,
+    30.59448,
+    30.609877,
+    30.593914,
+    30.64616,
+    30.601759,
+    30.58792,
+    30.63569,
+    30.562804,
+    30.597066,
+    30.533427,
+    30.508994,
+    30.562147,
+    30.603065,
+    30.5492,
+    30.562687,
+    30.588617,
+    30.5196,
+    30.591449,
+    30.588313,
+    30.613253,
+    30.613598,
+    30.513045,
+    30.553601,
+    30.585344,
+    30.642461,
+    30.61952,
+    30.652645,
+    30.604521,
+    30.59317,
+    30.547556,
+    30.612381,
+    30.605431,
+    30.597569,
+    30.440228,
+    30.590445,
+    30.591677,
+    30.629305,
+    30.627371,
+    30.53805,
+    30.574424,
+    30.611209,
+    30.633876,
+    30.594995,
+    30.657939,
+    30.53559,
+    30.586516,
+    30.579192,
+    30.536913,
+    30.566916,
+    30.608562,
+    30.55868,
+    30.553091,
+    30.632239,
+    30.595857,
+    30.576747,
+    30.471628,
+    30.613728,
+    30.599437,
+    30.624913,
+    30.653519,
+    30.611836,
+    30.53025,
+    30.604285,
+    30.610441,
+    30.555959,
+    30.644369,
+    30.567413,
+    30.518482,
+    30.542887,
+    30.568083,
+    30.633924,
+    30.487387,
+    30.557913,
+    30.594949,
+    30.543635,
+    30.559266,
+    30.53124,
+    30.585169
+];
+		var lng =[114.340713,
+    114.166582,
+    114.446585,
+    114.211963,
+    114.342728,
+    114.324367,
+    114.277196,
+    114.337576,
+    114.275778,
+    114.280302,
+    114.310562,
+    114.425123,
+    114.323095,
+    114.349309,
+    114.26837,
+    114.220597,
+    114.421951,
+    114.368062,
+    114.310829,
+    114.325647,
+    114.308072,
+    114.333949,
+    114.308749,
+    114.254681,
+    114.27842,
+    114.416598,
+    114.216849,
+    114.394062,
+    114.295342,
+    114.342028,
+    114.299279,
+    114.37098,
+    114.295038,
+    114.280819,
+    114.293333,
+    114.297415,
+    114.30983,
+    114.247111,
+    114.295653,
+    114.283831,
+    114.267075,
+    114.23681,
+    114.308819,
+    114.416369,
+    114.448655,
+    114.233335,
+    114.30467,
+    114.355759,
+    114.27473,
+    114.294615,
+    114.248427,
+    114.345446,
+    114.295114,
+    114.31799,
+    114.317617,
+    114.346581,
+    114.325129,
+    114.28983,
+    114.28243,
+    114.306782,
+    114.305457,
+    114.284476,
+    114.300418,
+    114.42569,
+    114.319028,
+    114.344945,
+    114.27286,
+    114.429954,
+    114.354021,
+    114.306752,
+    114.379162,
+    114.400474,
+    114.271796,
+    114.263724,
+    114.37878,
+    114.390696,
+    114.306787,
+    114.31839,
+    114.37099,
+    114.295771,
+    114.273843,
+    114.347648,
+    114.221755,
+    114.289417,
+    114.352497,
+    114.306015,
+    114.273907,
+    114.306796,
+    114.217087,
+    114.395348,
+    114.317241,
+    114.352317,
+    114.404852,
+    114.304401,
+    114.312675,
+    114.342512,
+    114.300476,
+    114.293546,
+    114.273066,
+    114.303421,
+    114.206438,
+    114.333166,
+    114.31341,
+    114.211927,
+    114.264916,
+    114.334907,
+    114.323066,
+    114.307136,
+    114.338393,
+    114.211908,
+    114.342856,
+    114.294997
+];
+		//驾车距离
+		var driveJuli = [10, 
+    2889,
+    1802,
+    2092,
+    1797,
+    664,
+    1490,
+    1632,
+    1597,
+    1737,
+    866,
+    1697,
+    595,
+    1027,
+    1843,
+    2290,
+    1541,
+    743,
+    1223,
+    1659,
+    1101,
+    954,
+    1097,
+    1644,
+    1492,
+    1859,
+    2019,
+    1242,
+    1092,
+    347,
+    1063,
+    695,
+    1629,
+    1525,
+    1125,
+    843,
+    905,
+    2016,
+    1082,
+    1374,
+    1699,
+    2219,
+    1020,
+    1444,
+    1737,
+    2171,
+    1106,
+    829,
+    1515,
+    1446,
+    1903,
+    303,
+    1656,
+    900,
+    993,
+    1838,
+    763,
+    1461,
+    1501,
+    997,
+    1257,
+    1320,
+    1066,
+    1520,
+    872,
+    592,
+    1515,
+    2070,
+    530,
+    1066,
+    1073,
+    1345,
+    1879,
+    1853,
+    1014,
+    1287,
+    959,
+    1449,
+    1294,
+    1616,
+    1495,
+    1240,
+    2516,
+    1302,
+    594,
+    1243,
+    1457,
+    996,
+    2226,
+    2724,
+    914,
+    369,
+    1318,
+    1562,
+    1053,
+    1271,
+    1106,
+    1215,
+    1781,
+    1419,
+    2447,
+    1570,
+    1285,
+    2455,
+    1700,
+    2075,
+    835,
+    953,
+    1027,
+    2532,
+    1262,
+    1553
+];
+		//公交距离
+	    var transitJuli =   [0, 
+    3899,
+    4164,
+    3509,
+    3688,
+    1192,
+    1835,
+    2816,
+    2006,
+    2790,
+    1255,
+    3096,
+    1195,
+    2142,
+    2817,
+    3049,
+    4541,
+    1820,
+    2441,
+    3536,
+    1110,
+    1791,
+    1078,
+    2527,
+    1866,
+    3580,
+    2934,
+    2934,
+    1732,
+    60,
+    1574,
+    2057,
+    1958,
+    2022,
+    2034,
+    1769,
+    2167,
+    2288,
+    1691,
+    1883,
+    2295,
+    2563,
+    1900,
+    4216,
+    4053,
+    4053,
+    1248,
+    1248,
+    2697,
+    1848,
+    3223,
+    787,
+    1838,
+    1637,
+    1600,
+    2983,
+    1311,
+    2217,
+    2914,
+    2096,
+    2532,
+    1466,
+    1896,
+    4480,
+    1716,
+    1846,
+    1950,
+    4537,
+    1398,
+    2228,
+    2596,
+    2796,
+    2907,
+    2907,
+    2000,
+    3011,
+    1983,
+    2756,
+    2589,
+    2589,
+    2296,
+    1626,
+    2925,
+    1296,
+    2191,
+    2175,
+    2416,
+    2093,
+    3522,
+    4988,
+    1594,
+    990,
+    2433,
+    2632,
+    1617,
+    2401,
+    1726,
+    1421,
+    2192,
+    2989,
+    3538,
+    2675,
+    2168,
+    3065,
+    2627,
+    2616,
+    992,
+    2012,
+    1543,
+    2560,
+    2303,
+    1959
+];
+		//骑行距离
+		var rideJuli = [0, 
+    8735,
+    6363,
+    7663,
+    5283,
+    1412,
+    4138,
+    6235,
+    3856,
+    4662,
+    3584,
+    5590,
+    1222,
+    2689,
+    4754,
+    6314,
+    5211,
+    1193,
+    2904,
+    6259,
+    3669,
+    2044,
+    3648,
+    4452,
+    4038,
+    5287,
+    5877,
+    2485,
+    3597,
+    321,
+    3290,
+    1509,
+    3063,
+    3489,
+    3351,
+    3830,
+    3090,
+    6354,
+    3581,
+    3456,
+    5307,
+    5061,
+    3256,
+    4397,
+    6413,
+    5216,
+    3534,
+    2368,
+    3801,
+    3082,
+    5464,
+    458,
+    3068,
+    3888,
+    3913,
+    3792,
+    1602,
+    3231,
+    5346,
+    4584,
+    5744,
+    3847,
+    3088,
+    5179,
+    3823,
+    1184,
+    3954,
+    8172,
+    601,
+    2975,
+    2541,
+    2751,
+    4619,
+    4496,
+    1783,
+    2922,
+    3183,
+    6206,
+    3724,
+    2953,
+    4532,
+    2929,
+    5567,
+    4034,
+    1877,
+    1954,
+    4967,
+    3221,
+    6095,
+    6508,
+    3918,
+    836,
+    2965,
+    5792,
+    3888,
+    2903,
+    3631,
+    3846,
+    3958,
+    5584,
+    6191,
+    3311,
+    2369,
+    6074,
+    5317,
+    4574,
+    1457,
+    3195,
+    2421,
+    6126,
+    2864,
+    2936
+];
+		var esize = [0, 4.5, 4.5, 4.5, 4.5, 4.7, 4.5, 4.7, 4.7, 3, 4.7, 4.9, 4, 4.6, 4.4, 4.3, 5, 4.8, 4.4, 4.3, 4.7, 3.9, 4.2, 4.5, 4.1, 5, 5, 4.7, 4.4, 4.7, 4.1, 4.3, 4.3, 4.2, 4.4, 4.5, 4.4, 4.3, 3, 4.5, 4.7, 4.7, 4, 4.7, 4.3, 4.3, 4.3, 5, 4.9, 4.6];
+		var prices = [0,
+    99,
+    117,
+    102,
+    114,
+    82,
+    119,
+    103,
+    88,
+    131,
+    85,
+    108,
+    100,
+    102,
+    77,
+    48,
+    94,
+    117,
+    78,
+    70,
+    135,
+    56,
+    105,
+    79,
+    81,
+    78,
+    77,
+    129,
+    93,
+    104,
+    104,
+    137,
+    30,
+    83,
+    109,
+    54,
+    108,
+    66,
+    78,
+    12,
+    77,
+    74,
+    109,
+    81,
+    251,
+    21,
+    113,
+    70,
+    150,
+    52,
+    114,
+    66,
+    17,
+    149,
+    274,
+    63,
+    95,
+    67,
+    147,
+    98,
+    88,
+    92,
+    94,
+    165,
+    87,
+    81,
+    68,
+    72,
+    61,
+    86,
+    59,
+    71,
+    68,
+    53,
+    62,
+    70,
+    172,
+    151,
+    48,
+    85,
+    64,
+    58,
+    70,
+    151,
+    116,
+    58,
+    64,
+    76,
+    87,
+    152,
+    115,
+    81,
+    43,
+    76,
+    71,
+    77,
+    69,
+    81,
+    61,
+    67,
+    58,
+    83,
+    80,
+    82,
+    79,
+    111,
+    102,
+    68,
+    17,
+    88,
+    57,
+    15
+];
+		//var hot =   [1, 88, 9, 2, 200, 3, 0, 77, 57, 68, 50, 32, 11, 200, 166, 2, 58, 54, 69, 4, 56, 1, 24, 121, 69, 22, 41, 1, 49, 85, 42, 0, 68, 92, 30, 8, 1, 3, 200, 1, 122, 200, 200, 0, 0, 48, 200, 75, 63, 58, 148, 80, 0, 1, 54, 100, 62, 200, 33, 37, 192, 155, 1, 200, 46, 0, 101, 141, 49, 1, 87, 146, 200, 162, 123, 105, 106, 1, 1, 68, 200, 77, 161, 200, 158, 1, 56, 5, 24, 1];
+		var rates= [0,
+    4.3,
+    4.2,
+    3.7,
+    4.2,
+    4.2,
+    4.4,
+    4.6,
+    4.2,
+    4.2,
+    4.1,
+    4.3,
+    4.3,
+    4.5,
+    4.4,
+    4.4,
+    4.1,
+    4.3,
+    4.1,
+    4,
+    4.2,
+    4.4,
+    4,
+    4,
+    4.2,
+    4,
+    4.1,
+    4.4,
+    4.3,
+    4.5,
+    4.3,
+    4.5,
+    4.5,
+    4.3,
+    4.2,
+    4.3,
+    4.5,
+    4.1,
+    4.4,
+    4.3,
+    4.2,
+    4.1,
+    4.2,
+    4.3,
+    4.3,
+    4.2,
+    4.4,
+    4.2,
+    4.2,
+    4.4,
+    4.6,
+    4.1,
+    4.2,
+    4.2,
+    4.4,
+    4.2,
+    4.5,
+    4.3,
+    4.4,
+    4.6,
+    4.4,
+    4.1,
+    4.3,
+    4.2,
+    4,
+    4.4,
+    4.3,
+    4.3,
+    4.1,
+    4.2,
+    4.1,
+    4.6,
+    4.1,
+    4.1,
+    4.2,
+    4.4,
+    4.5,
+    4.1,
+    4.2,
+    4.1,
+    4.6,
+    4.2,
+    4,
+    4.3,
+    4.7,
+    4.3,
+    4.3,
+    4.2,
+    4.5,
+    4.6,
+    4.3,
+    4.2,
+    4.4,
+    4.5,
+    4.1,
+    4,
+    4.5,
+    4,
+    4.4,
+    4.3,
+    4,
+    4.7,
+    4.2,
+    4.4,
+    4.3,
+    4.3,
+    4.3,
+    4.4,
+    4.6,
+    4.4,
+    4.7,
+    4.3
+];
+		//var names = ["湖北大学", "四美塘公园", "粤汉码头", "宋庆龄汉口旧居纪念馆", "汉口江滩芦苇荡"];
+		//var lat =[30.58292, 30.602735, 30.595153, 30.592172, 30.61173];
+		//var lng=[114.340713, 114.344745, 114.313247, 114.308773, 114.323225];
+        debugger;
+		var i = -1;
+		var myVar = null;
+		var distance = [];
+		var ydistance = [];
+		var toCenter = [];
+		var firstArea = 0;
+		var secondArea = 0;
+		var thirdArea = 0;
+		var forthArea = 0;
+		toCenter[0] = 0;
+		distance[0] = 0;
+		ydistance[0] = 0;
+		/***************删除重复数组*************/
+		for (var i = 0; i < names.length; i++) {
+			for (var j = i + 1; j < names.length; j++) {
+				if (names[i] === names[j] || driveJuli[j]==null) {
+					names.splice(j, 1);
+					lat.splice(j, 1);
+					lng.splice(j, 1);
+					rates.splice(j, 1);
+					prices.splice(j, 1);
+					transitJuli.splice(j,1)
+					driveJuli.splice(j,1)
+					rideJuli.splice(j,1)
+
+				}
+			}
+		}
+			debugger;
+		/******************拉伸*************/
+		// for(var i = 1; i < names.length; i++)
+		// {
+		// lat[i]=lat[i]+250*(lat[i]-lat[0]);
+		// lng[i]=lng[i]+250*(lng[i]-lng[0]);
+		// }
+
+
+		/***************计算距中心标签欧氏距离*************/
+		 for (let j = 1; j < names.length; j++) {
+		 	//欧式距离
+		 	distance[j] = Math.sqrt(Math.pow((lat[j] - lat[0]), 2) + Math.pow((lng[j] - lng[0]), 2));
+		 	//Y轴距离
+		 	//ydistance[j] = Math.abs(lat[j] - lat[0]);
+		 }
+
+            
+		//debugger;
+
+		 for (var m = 0; m < names.length - 2; m++) {
+		 	for (var n = 1; n < names.length - m - 1; n++) {
+		 		if (distance[n] > distance[n + 1]) {
+		 			var swap = distance[n];
+		 			var swapname = names[n]
+		 			var swaplat = lat[n];
+		 			var swaplng = lng[n];
+					var swaptransitJuli = transitJuli[n];
+          var swapprices = prices[n];
+          var swaprates = rates[n];
+
+		 			distance[n] = distance[n + 1];
+		 			distance[n + 1] = swap;
+		 			names[n] = names[n + 1];
+		 			names[n + 1] = swapname;
+		 			lat[n] = lat[n + 1];
+		 			lat[n + 1] = swaplat;
+		 			lng[n] = lng[n + 1];
+		 			lng[n + 1] = swaplng;
+          transitJuli[n] = transitJuli[n + 1];
+		 			transitJuli[n + 1] = swaptransitJuli;
+          prices[n] = prices[n + 1];
+					prices[n + 1] = swapprices;
+          rates[n] = rates[n + 1];
+					rates[n + 1] = swaprates;
+		 		}
+
+		 	}
+		 }
+     
+    names = names.slice(0,50)
+    lat = lat.slice(0,50)
+    lng = lng.slice(0,50)
+    transitJuli = transitJuli.slice(0,50)
+    prices = prices.slice(0,50)
+    rates =  rates.slice(0,50)
+
+		debugger;
+		/***************排序*************/
+		for (var m = 0; m < names.length - 2; m++) {
+			for (var n = 1; n < names.length - m - 1; n++) {
+				if (transitJuli[n] > transitJuli[n + 1]) {
+					var swap = transitJuli[n];
+					var swapname = names[n]
+					var swaplat = lat[n];
+					var swaplng = lng[n];
+					var swapprices = prices[n];
+          var swaprates = rates[n];
+
+					transitJuli[n] = transitJuli[n + 1];
+					transitJuli[n + 1] = swap;
+					names[n] = names[n + 1];
+					names[n + 1] = swapname;
+					lat[n] = lat[n + 1];
+					lat[n + 1] = swaplat;
+					lng[n] = lng[n + 1];
+					lng[n + 1] = swaplng;
+					prices[n] = prices[n + 1];
+					prices[n + 1] = swapprices;
+          rates[n] = rates[n + 1];
+					rates[n + 1] = swaprates;
+				}
+
+			}
+		}
+
+
+		//    for (var n = 1; n < names.length - 1; n++) {
+		//     if(Math.abs(lat[n] - lat[n + 1])<0.001&Math.abs(lng[n] - lng[n + 1])<0.001)
+		// 	{   
+		// 	        debugger;
+		// 			if (ydistance[n] > ydistance[n + 1]) {
+		// 			var swap = distance[n];
+		// 			var swapname = names[n]
+		// 			var swaplat = lat[n];
+		// 			var swaplng = lng[n];
+
+		// 			ydistance[n] = ydistance[n + 1];
+		// 			ydistance[n + 1] = swap;
+		// 			names[n] = names[n + 1];
+		// 			names[n + 1] = swapname;
+		// 			lat[n] = lat[n + 1];
+		// 			lat[n + 1] = swaplat;
+		// 			lng[n] = lng[n + 1];
+		// 			lng[n + 1] = swaplng;
+		// 		}
+		// 	}
+
+		//        }
+
+		debugger;
+		/*var width = 1;
+		var height = 1;
+		var canvas = d3.select("body")
+			.append("svg")
+			.attr("width",width)
+			.attr("height",height);*/
+
+		var canvas = document.createElement("canvas");
+		canvas.width = 1;
+		canvas.height = 1;
+		var ratio = Math.sqrt(canvas.getContext("2d").getImageData(0, 0, 1, 1).data.length >> 2);
+		canvas.width = 600;
+		canvas.height = 210;
+		var c = canvas.getContext("2d");
+		c.strokeStyle = "#f00";
+		debugger;
+		var vis = d3.select("#bbtree").append("svg")
+			.attr("width", w)
+			.attr("height", h)
+			.attr("pointer-events", "all")
+			.append("g")
+			.attr("transform", "translate(330,235)")
+		//.attr("transform", "translate(-114.340713*(0.5-1),30.58292*(0.5-1)) scale(0.5)");
+
+
+
+		// for (let j = 0; j < stextCount; j++)
+		// //for(let j=20;j>-1;j--)
+		// {
+		// 	if (j == 0)
+		// 		glyphs.push({ name: names[j], size: 40, tree: glyphTree(names[j], 40), away:distance[j],area: 0, position: [lng[j], -lat[j]], flag: false });
+		//     else if(j == 1)
+		// 	    glyphs.push({ name: names[j], size: 20, tree: glyphTree(names[j], 20), away:distance[j],area: 0, position: [lng[j], -lat[j]], flag: true });
+		// 	else {
+		// 		let h = j % 4;
+		// 		if (h == 0)
+		// 			glyphs.push({ name: names[j], size: 15, tree: glyphTree(names[j], 15),away:distance[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+		// 		else if (h == 1)
+		// 			glyphs.push({ name: names[j], size: 20, tree: glyphTree(names[j], 20),away:distance[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+		// 		else if (h == 2)
+		// 			glyphs.push({ name: names[j], size: 25, tree: glyphTree(names[j], 25),away:distance[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+		// 		else if (h == 3)
+		// 			glyphs.push({ name: names[j], size: 30, tree: glyphTree(names[j], 30),away:distance[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+		// 	}
+		// }
+		//debugger;
+
+		for (let j = 0; j < stextCount; j++)
+		//for(let j=20;j>-1;j--)
+		{
+			if (j == 0)
+				glyphs.push({ name: names[j], size: 50, tree: glyphTree(names[j], 50), away: transitJuli[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+			else if (j == 1)
+				glyphs.push({ name: names[j], size: 17, tree: glyphTree(names[j], 17), away: transitJuli[j], area: 0, position: [lng[j], -lat[j]], flag: true });
+			else {
+				if (prices[j] <= 30)
+					glyphs.push({ name: names[j], size: 30, tree: glyphTree(names[j], 30), away: transitJuli[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+				else if (prices[j] > 30 && prices[j] <= 50) {
+					glyphs.push({ name: names[j], size: 27, tree: glyphTree(names[j], 27), away:transitJuli[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+				}
+				else if (prices[j] > 50 && prices[j] <= 70) {
+					glyphs.push({ name: names[j], size: 23, tree: glyphTree(names[j], 23), away: transitJuli[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+				}
+				else if (prices[j] > 70 && prices[j] <= 90) {
+					glyphs.push({ name: names[j], size: 20, tree: glyphTree(names[j], 20), away: transitJuli[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+				}
+				else if (prices[j] > 90 && prices[j] <= 110) {
+					glyphs.push({ name: names[j], size: 17, tree: glyphTree(names[j], 17), away: transitJuli[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+				}
+				else if (prices[j] > 11 && prices[j] <= 130) {
+					glyphs.push({ name: names[j], size: 14, tree: glyphTree(names[j], 14), away: transitJuli[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+				}
+				else if (prices[j] > 130 && prices[j] <= 150) {
+					glyphs.push({ name: names[j], size: 11, tree: glyphTree(names[j], 11), away: transitJuli[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+				}
+				else if (prices[j] > 150 && prices[j] <= 170) {
+					glyphs.push({ name: names[j], size: 8, tree: glyphTree(names[j], 8), away: transitJuli[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+				}
+				else {
+					glyphs.push({ name: names[j], size: 5, tree: glyphTree(names[j],5), away: transitJuli[j], area: 0, position: [lng[j], -lat[j]], flag: false });
+				}
+
+			}
+		}
+
+		function colorRange(node) {
+      var maxDistance = Math.max.apply(Math, transitJuli);
+			debugger;
+			if (node.index == 0) {
+				return "rgb(255,255,255)";
+			}
+			else if (rates[node.index]>4.8) {
+				return "#a00000";
+			}
+			else if (rates[node.index]> 4.6 && rates[node.index] <= 4.8) {
+				return "#c03d3d";
+				//return "rgb(252,146,114)";
+			}
+			else if (rates[node.index]> 4.4 && rates[node.index] <= 4.6) {
+				return "#df7b7b";
+				//return "rgb(252,146,114)";
+			}
+			else if (rates[node.index]> 4.2 && rates[node.index]<= 4.4) {
+				return "#8dd0ff";
+				//return "rgb(252,146,114)";
+			}
+			// else if (node.away > 4800 && node.away < 6000) {
+			// 	return  "#47b0df";
+			// 	//return "rgb(252,146,114)";
+			//}
+			else
+				return "#008fbf";
+		}
+		var edges = [//边集
+			{ source: 0, target: 1, relation: "籍贯", value: 1 },
+			{ source: 0, target: 2, relation: "籍贯", value: 1 },
+			{ source: 0, target: 3, relation: "籍贯", value: 1 },
+			{ source: 1, target: 2, relation: "籍贯", value: 1 },
+			{ source: 2, target: 3, relation: "籍贯", value: 1 },
+			{ source: 3, target: 1, relation: "籍贯", value: 1 }
+
+		];
+
+		/**********给文本标签赋随机颜色************/
+
+		var forceSimulation = d3.forceSimulation()
+			//.force("charge", d3.forceManyBody())
+			//.force("link",d3.forceLink())
+			//.force("center", d3.forceCenter())
+			.force("x", d3.forceX())
+			.force("y", d3.forceY())
+
+		forceSimulation.nodes(glyphs)
+			.on("tick", ticked);
+
+		// forceSimulation.force("center")
+		// 		.x(114.340713) 
+		// 		.y(-30.58292); 
+
+		forceSimulation.alphaDecay(0.01);
+		forceSimulation.velocityDecay(0);
+		//forceSimulation.simulation.alpha(1);
+
+		/****************斥力******************/
+		// forceSimulation.force("charge")
+		// 	.strength(-0.2) 
+		// 	 .theta(1.3) 
+
+		//.distanceMin(10)
+		//.distanceMax(100)
+
+		/****************方向力******************/
+		forceSimulation.force("x")
+			.x(function (d) {
+				//debugger;
+				return d.position[0] + 20000 * (d.position[0] - 114.340713);
+			})
+			.strength(0.0001)
+
+
+
+		forceSimulation.force("y")
+			.y(function (d) {
+				//debugger;
+				return d.position[1] + 20000 * (d.position[1] + 30.58292);
+			})
+			.strength(0.0001)
+
+		//forceSimulation.alphaDecay(0.001);
+		//forceSimulation.alphaDecay(0.01);	
+
+
+
+		//forceSimulation.alphaDecay(0.001);			
+
+		function glyphTree(d, size) {
+			return makeTree({ sprite: sprite(c, d, size, 150, 600, 200), x: 0, y: 0, r: 600, b: 200 }, 0, 0, 600, 200);
+		}
+
+		var g = vis.selectAll(".circleText")
+			.data(glyphs)
+			.enter()
+			.append("g")
+			.attr("transform", function (d, i) {
+				if (d.index != 1) {
+					d.fx = d.position[0];
+					d.fy = d.position[1];
+				}
+				//debugger;
+				//var cirX = d.x;
+				//var cirY = d.y;
+				d.x = d.position[0];
+				d.y = d.position[1];
+				return "translate(" + d.x + "," + d.y + ")";
+				//return "translate("+cirX+","+cirY+")";
+
+			})
+			.on("click", function (d) {
+				d.code = 32 + ((d.code - 32 + 1) % (0x7f - 32) || 9699);
+				d.text = String.fromCharCode(d.code);
+				d.tree = glyphTree(d.text);
+        var newEl = document.createElement("input");
+          newEl.type = 'button';
+          newEl.value = "button";
+          newEl.name = "button1";
+          document.querySelector("#bbtree").append(newEl);
+        alert(1)
+				update();
+			})
+			.call(d3.drag()
+				.subject(function (d) { return { x: d.position[0], y: d.position[1] }; })
+				.on("drag", function (d) {
+					//d.position = [Math.max(0, Math.min(w - canvas.width, d3.event.x)), Math.max(0, Math.min(h - canvas.height, d3.event.y))];
+					d.position = [d3.event.x, d3.event.y];
+					d3.select(this)
+						.attr("transform", function (d) { return "translate(" + d.position + ")"; });
+					collide();
+				})
+
+			);
+		g.append("text")
+			.attr("x", 600 / 2)
+			.attr("y", 150)
+			.attr("text-anchor", "middle")
+			.style("font-size", function (d) {
+				return d.size;
+			})
+			.attr("fill", function (d, i) {
+				return colorRange(d);
+			})
+			//.style("font-family", "FZZhongDengXian-Z07S")
+			.style("font-family", "Microsoft YaHei")
+			.style("font-weight", "bold")
+			.attr("pointer-events", "all")
+			.text(function (d) { return d.name; })
+
+		var rect = g.selectAll("rect")
+			.data(function (d) {
+				//debugger; 
+				return flatten(d.tree);
+			})
+			.enter()
+			.append("rect")
+			//.exit()
+			//.remove()
+			.attr("width", function (d) { return (d.r - d.x); })
+			.attr("height", function (d) { return (d.b - d.y); })
+			.attr("x", function (d) { return d.x; })
+			.attr("y", function (d) { return d.y; })
+			.style("stroke-width", function (d) { return 2 - d.depth / 2; });
+
+
+		function ticked() {
+			debugger;
+			g
+				.attr("transform", function (d) {
+					//debugger;
+					if(sflag == 0)
+					{
+					if (d.flag == true) {
+						d.position = [d.x, d.y];
+						debugger;
+						collide(d);
+						return "translate(" + d.x + "," + d.y + ")";
+					}
+					else {
+						return "translate(" + d.position[0] + "," + d.position[1] + ")";
+					}
+					//return "scale(1)";
+				}
+				else{
+					if (d.flag == false) {
+						//d.position = [d.x, d.y];
+						//debugger;
+						xcollide(d);
+						if (d.flag == false) {
+						return "translate(" + d.x + "," + d.y + ")";
+						}
+						else{
+						return "translate(" + d.position[0] + "," + d.position[1] + ")";
+						}
+					}
+					else {
+						return "translate(" + d.position[0] + "," + d.position[1] + ")";
+					}
+				}
+				}
+				);
+			//collide();	
+		}
+		var nstextCount = parseInt(stextCount);
+		function collide(curNode) {
+      if(curNode.index ==1)
+      g.selectAll("rect").remove(); 
+			for (var i = 0; i < curNode.index; i++) {
+				debugger;
+				var a = curNode,
+					b = glyphs[i];
+				if (overlaps(a.tree, b.tree, a.position[0], a.position[1], b.position[0], b.position[1])) {
+					// vis.classed("collide", overlaps(a.tree, b.tree, a.position[0], a.position[1], b.position[0], b.position[1]));
+					break;
+				}
+				else if (i == curNode.index - 1) {
+					debugger;
+					curNode.flag = overlaps(a.tree, b.tree, a.position[0], a.position[1], b.position[0], b.position[1]);
+					//curNode.vx=0;
+					//curNode.vy=0;
+					curNode.fx = curNode.x;
+					curNode.fy = curNode.y;
+					if (curNode.index != nstextCount - 1) {
+						let m = i + 2;
+						glyphs[m].flag = true;
+						forceSimulation.alpha(1);
+						glyphs[m].fx = null;
+						glyphs[m].fy = null;
+					}
+					if (curNode.index == nstextCount - 1) {
+						//alert("ok");
+						debugger;
+						//forceSimulation.alpha(0);
+						forceSimulation.force("x", null);
+						forceSimulation.force("y", null);
+						forceSimulation.alpha(1);
+						//glyphs[1].fx = null;
+						//glyphs[1].fy = null;
+						forceSimulation.force("x", d3.forceX())
+							.force("y", d3.forceY());
+						forceSimulation.force("x")
+							.x(114.340713)
+							.strength(0.001)
+						forceSimulation.force("y")
+							.y(function (d) {
+								//debugger;
+								return d.position[1];
+								//+20000*(d.position[1]+30.58292);
+							})
+							.strength(0.001)
+
+						for (let i = 0; i < glyphs.length; i++) {
+							if (glyphs[i].index != nstextCount-1) {
+								glyphs[i].fx = null;
+								glyphs[i].fy = null;
+							}
+						}
+            //alert(1);
+            debugger;
+            //rect._groups=[];
+            //rect.html('');
+            //rect._groups[0].remove()
+
+						glyphs[1].flag = true;
+						glyphs[0].flag = true;
+						glyphs[1].fx = null;
+						glyphs[1].fy = null;
+                        sflag++;
+					}
+					//glyphs[m].vx=NaN;
+				}
+				vis.classed("collide", overlaps(a.tree, b.tree, a.position[0], a.position[1], b.position[0], b.position[1]));
+			}
+		}
+		function xcollide(curNode) {
+		for(var i=0;i<nstextCount;i++ )
+		{
+			debugger;
+			if(i==curNode.index&&i!=nstextCount-1)
+			continue;
+			if(i==curNode.index&&i==nstextCount-1)
+			{
+			curNode.position = [curNode.x, curNode.y];
+			break;
+			}
+			var a = curNode,
+				b = glyphs[i];
+			var gap = Math.abs(curNode.x-114.340713);
+			//var origap = Math.abs(lng[curNode.index]-114.340713) * 2000;
+			var origap = Math.abs(lng[curNode.index]-114.340713) * 200;
+			if(overlaps(a.tree, b.tree, a.x, a.y, b.position[0], b.position[1])||gap<origap)
+			{ 
+			debugger;
+			curNode.flag=overlaps(a.tree, b.tree, a.x, a.y, b.position[0], b.position[1]);	
+			curNode.fx = curNode.position[0];
+			curNode.fy = curNode.position[1];
+			let m=curNode.index + 1;
+			glyphs[m].flag=false;
+			forceSimulation.alpha(1);	
+			glyphs[m].fx=null;
+			glyphs[m].fy=null;
+			break;
+			//glyphs[m].vx=NaN;
+			}
+            else if (i == nstextCount - 1) {
+			  curNode.position = [curNode.x, curNode.y];
+			}			
+			vis.classed("collide", overlaps(a.tree, b.tree, a.position[0], a.position[1], b.position[0], b.position[1]));
+		  }
+		}
+		function started(d) {
+			if (!d3.event.active) {
+				forceSimulation.alphaTarget(0.8).restart();
+			}
+			d.fx = d.x;
+			d.fy = d.y;
+		}
+		function dragged(d) {
+			d.fx = d3.event.x;
+			d.fy = d3.event.y;
+			debugger;
+		}
+		function ended(d) {
+			if (!d3.event.active) {
+				forceSimulation.alphaTarget(0);
+			}
+			d.fx = null;
+			d.fy = null;
+		}
+		function sprite(c, text, s, dy, w, h) {
+			c.clearRect(0, 0, w + 2 * p, h + 2 * p);
+			c.save();
+			c.fillStyle = "#EDF14D";
+			c.textAlign = "center";
+			c.font ="bold " + ~~(s / ratio) + "px  Microsoft YaHei";
+			c.translate(p + (w >> 1) / ratio, p + dy / ratio);
+			c.fillText(text, 0, 0);
+			c.restore();
+			var pixels = c.getImageData(p, p, w / ratio, h / ratio).data,
+				sprite = [];
+			for (var i = w * h; --i >= 0;) sprite[i] = pixels[(i << 2) + 3];
+			return sprite;
+		}
+
+		function flatten(root) {
+			var nodes = [];
+
+			recurse(root, 0);
+
+			return nodes;
+
+			function recurse(node, depth) {
+				node.depth = depth;
+				if (node.children) node.children.forEach(function (d) { recurse(d, depth + 1); });
+				nodes.push(node);
+			}
+		}
+		var data_legend = [
+			{
+				"name": "评分4.8以上",
+        "color": "#a00000"
+			},
+			{
+				"name": "评分4.6-4.8",
+				"color": "#c03d3d"
+			},
+			{
+				"name": "评分4.4-4.6",
+				"color": "#df7b7b"
+			},
+			{
+				"name": "评分4.4-4.6",
+        "color": "#8dd0ff"
+			},
+			{
+				"name": "评分4.2-4.4",
+				"color": "#008fbf"
+			}
+		];
+
+		var width = 100;
+
+
+		debugger;
+		//初始化图例，将data_legend与图例绑定
+		var legend = vis.selectAll(".legend")
+			.data(data_legend)
+			.enter().append("g")
+			.attr("class", "legend")
+			.attr("transform", function (d, i) { debugger; return "translate(800," + (i * 30 + 230) + ")"; });  //transform属性便是整个图例的坐标
+
+		//绘制文字后方的颜色框或线
+		legend.append("rect")
+			.attr("x", width - 25) //width是svg的宽度，x属性用来调整位置
+			// .attr("x", (width / 160) * 157)  
+			//或者可以用width的分数来表示，更稳定一些，这是我试出来的，下面同
+			.attr("y", 8)
+			.attr("width", 40)
+			.attr("height", 10) //设低一些就是线，高一些就是面，很好理解
+			.style("fill", function (d) {
+				return d.color
+			});
+
+		//绘制图例文字
+		legend.append("text")
+			.attr("x", 60)
+			// .attr("x", (width / 40) * 39)
+			.attr("y", 15)
+			.style("text-anchor", "end") //样式对齐
+			.attr("fill", function (d) {
+				return "rgb(255,255,255)"
+			})
+			.text(function (d) {
+				return d.name;
+			});
+
+
+	</script>
+</body>
+
+</html>
